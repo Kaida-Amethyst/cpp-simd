@@ -1,10 +1,15 @@
-
+#pragma once
 struct vv_general {
   int regNum;
   vv_general();
 };
 struct vv_float : public vv_general {};
 struct vv_int32 : public vv_general {};
+
+struct vv_bool {
+  int regNum;
+  vv_bool();
+};
 
 void __vv_add(vv_float &a, vv_float b, vv_float c);
 void __vv_add(vv_float &a, vv_float b, float c);
