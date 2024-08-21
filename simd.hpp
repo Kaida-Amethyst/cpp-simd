@@ -23,7 +23,9 @@ template <typename T> struct simd_base {
   _Vreg<T> reg;
 
   __mlu_func__ typename _Vreg<T>::regtype &get_reg() { return reg.reg; }
-  __mlu_func__ const _Vreg<T>::regtype &get_reg() const { return reg.reg; }
+  __mlu_func__ const typename _Vreg<T>::regtype &get_reg() const {
+    return reg.reg;
+  }
 
   // Real constructor
   // __mlu_func__ simd_base() = default;
