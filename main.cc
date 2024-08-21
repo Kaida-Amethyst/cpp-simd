@@ -1,7 +1,7 @@
 #include "simd.hpp"
 
 int main() {
-  simd<float> a, b, c, d;
+  simd<float> a = 3.0, b, c, d;
   float *s = nullptr;
   a.load(s);
   b.load(s);
