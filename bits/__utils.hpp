@@ -1,3 +1,4 @@
+#pragma once
 #include <cstdint>
 
 struct false_type {
@@ -82,3 +83,67 @@ template <> struct UType<4> {
 };
 
 // -----------------------------------------------------
+template <typename Oper, typename T, class Loperand, class Roperand>
+struct BinClosure;
+template <typename Oper, typename T, class Dummy1, class Dummy2>
+struct UnClosure;
+class _Simd;
+class _Scalar;
+
+template <typename T> struct _Vreg;
+
+enum class TypeTag;
+template <typename T> struct TypeTrait;
+template <typename T, TypeTag> struct simd_base;
+
+enum class TypeTag {
+  Integer, // int, unsigned,
+  Float,   // float
+  // Half,  // half
+  // Bfloat16, // bfloat16_t
+  Pred,
+};
+
+template <> struct TypeTrait<bool> {
+  static constexpr TypeTag tag = TypeTag::Pred;
+};
+template <> struct TypeTrait<char> {
+  static constexpr TypeTag tag = TypeTag::Integer;
+};
+template <> struct TypeTrait<int> {
+  static constexpr TypeTag tag = TypeTag::Integer;
+};
+template <> struct TypeTrait<unsigned> {
+  static constexpr TypeTag tag = TypeTag::Integer;
+};
+template <> struct TypeTrait<int8_t> {
+  static constexpr TypeTag tag = TypeTag::Integer;
+};
+template <> struct TypeTrait<int16_t> {
+  static constexpr TypeTag tag = TypeTag::Integer;
+};
+template <> struct TypeTrait<uint8_t> {
+  static constexpr TypeTag tag = TypeTag::Integer;
+};
+template <> struct TypeTrait<uint16_t> {
+  static constexpr TypeTag tag = TypeTag::Integer;
+};
+template <> struct TypeTrait<float> {
+  static constexpr TypeTag tag = TypeTag::Float;
+};
+
+template <typename T> using simd = simd_base<T, TypeTrait<T>::tag>;
+//-----------------------
+struct __vec_neg;
+struct __vec_not;
+struct __vec_lnot;
+struct __vec_add;
+struct __vec_sub;
+struct __vec_mul;
+struct __vec_div;
+struct __vec_sll;
+struct __vec_srl;
+struct __vec_sra;
+struct __vec_and;
+struct __vec_or;
+struct __vec_xor;

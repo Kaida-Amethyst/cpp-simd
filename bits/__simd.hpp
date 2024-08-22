@@ -1,6 +1,8 @@
+#pragma once
 // Optional header
 #include "vv-interface.h"
 #include <cstdint>
+#include <iostream>
 #define __mlu_func__
 static int regCnt = 0;
 static int regCnt_p = 0; // only for vv_bool
@@ -26,13 +28,6 @@ using __allowed_addr_type = MatchIf<Addr, char, short, int, unsigned char,
 // unsigned short, unsigned int, float, half, bfloat16_t>;
 
 //------------------------------------------------------------
-
-template <typename T, class Loperand, class Roperand> struct BinClosure;
-template <typename T, class Dummy1, class Dummy2> struct UnClosure;
-class _Simd;
-class _Scalar;
-
-template <typename T> struct _Vreg;
 
 template <> struct _Vreg<float> {
   vv_float reg;
@@ -90,42 +85,6 @@ template <> struct _Vreg<bool> {
 //   using regtype = vv_int32;
 // };
 
-enum TypeTag {
-  Integer, // int, unsigned,
-  Float,   // float
-  // Half,  // half
-  // Bfloat16, // bfloat16_t
-  Pred,
-};
-
-template <typename T> struct TypeTrait;
-template <> struct TypeTrait<bool> {
-  static constexpr TypeTag tag = Pred;
-};
-template <> struct TypeTrait<char> {
-  static constexpr TypeTag tag = Integer;
-};
-template <> struct TypeTrait<int> {
-  static constexpr TypeTag tag = Integer;
-};
-template <> struct TypeTrait<unsigned> {
-  static constexpr TypeTag tag = Integer;
-};
-template <> struct TypeTrait<int8_t> {
-  static constexpr TypeTag tag = Integer;
-};
-template <> struct TypeTrait<int16_t> {
-  static constexpr TypeTag tag = Integer;
-};
-template <> struct TypeTrait<uint8_t> {
-  static constexpr TypeTag tag = Integer;
-};
-template <> struct TypeTrait<uint16_t> {
-  static constexpr TypeTag tag = Integer;
-};
-template <> struct TypeTrait<float> {
-  static constexpr TypeTag tag = Float;
-};
 // template <> struct TypeTrait<half> {
 // static constexpr TypeTag tag = Half;
 // };
@@ -140,59 +99,87 @@ template <typename T, template <typename, TypeTag> class SimdBase>
 struct CommonOperation {
   using _Simd = SimdBase<T, TypeTrait<T>::tag>;
 
-  __mlu_func__ _Simd &operator=(const _Simd &other) {
-    __vv_move(this->get_reg(), other.get_reg());
+  // __mlu_func__ CommonOperation() {
+  //   static_cast<_Simd &>(*this).reg.reg.regNum = regCnt++;
+  // };
+
+  __mlu_func__ _Simd &operator=(_Simd &other) {
+    __vv_move(static_cast<_Simd &>(*this).get_reg(), other.get_reg());
+    return static_cast<_Simd &>(*this);
   }
 
-  template <typename Scalar> __mlu_func__ _Simd &operator=(const Scalar &s) {
-    __vv_move(this->get_reg(), s);
+  template <typename Scalar> __mlu_func__ _Simd &operator=(Scalar &&s) {
+    __vv_move(static_cast<_Simd &>(*this).get_reg(), s);
+    return static_cast<_Simd &>(*this);
   }
 
-  template <template <typename, class, class> class Closure, class L, class R>
-  __mlu_func__ _Simd &operator=(Closure<T, L, R> &&clos) {
-    clos.eval(*this);
+  template <template <class, typename, class, class> class Closure, class Oper,
+            class L, class R>
+  __mlu_func__ _Simd &operator=(Closure<Oper, T, L, R> &&clos) {
+    clos.eval(static_cast<_Simd &>(*this));
+    return static_cast<_Simd &>(*this);
   }
 
-  __mlu_func__ _Simd &operator+=(const _Simd &other) {
-    __vv_add(this->get_reg(), this->get_reg(), other.get_reg());
+  __mlu_func__ _Simd &operator+=(_Simd &other) {
+    __vv_add(static_cast<_Simd &>(*this).get_reg(),
+             static_cast<_Simd &>(*this).get_reg(), other.get_reg());
+    return static_cast<_Simd &>(*this);
   }
 
-  template <typename Scalar> __mlu_func__ _Simd &operator+=(const Scalar &s) {
-    __vv_add(this->get_reg(), this->get_reg(), s);
+  template <typename Scalar> __mlu_func__ _Simd &operator+=(Scalar &&s) {
+    __vv_add(static_cast<_Simd &>(*this).get_reg(),
+             static_cast<_Simd &>(*this).get_reg(), s);
+    return static_cast<_Simd &>(*this);
   }
 
-  template <template <typename, class, class> class Closure, class L, class R>
-  __mlu_func__ _Simd &operator+=(Closure<T, L, R> &&clos) {
+  template <template <class, typename, class, class> class Closure, class Op,
+            class L, class R>
+  __mlu_func__ _Simd &operator+=(Closure<Op, T, L, R> &&clos) {
     clos.eval(clos.res);
-    __vv_add(this->get_reg(), this->get_reg(), clos.res.get_reg());
+    __vv_add(static_cast<_Simd &>(*this).get_reg(),
+             static_cast<_Simd &>(*this).get_reg(), clos.res.get_reg());
+    return static_cast<_Simd &>(*this);
   }
 
   __mlu_func__ _Simd &operator-=(const _Simd &other) {
-    __vv_sub(this->get_reg(), this->get_reg(), other.get_reg());
+    __vv_sub(static_cast<_Simd &>(*this).get_reg(),
+             static_cast<_Simd &>(*this).get_reg(), other.get_reg());
+    return static_cast<_Simd &>(*this);
   }
 
-  template <typename Scalar> __mlu_func__ _Simd &operator-=(const Scalar &s) {
-    __vv_sub(this->get_reg(), this->get_reg(), s);
+  template <typename Scalar> __mlu_func__ _Simd &operator-=(Scalar &&s) {
+    __vv_sub(static_cast<_Simd &>(*this).get_reg(),
+             static_cast<_Simd &>(*this).get_reg(), s);
+    return static_cast<_Simd &>(*this);
   }
 
-  template <template <typename, class, class> class Closure, class L, class R>
-  __mlu_func__ _Simd &operator-=(Closure<T, L, R> &&clos) {
+  template <template <class, typename, class, class> class Closure, class Op,
+            class L, class R>
+  __mlu_func__ _Simd &operator-=(Closure<Op, T, L, R> &&clos) {
     clos.eval(clos.res);
-    __vv_sub(this->get_reg(), this->get_reg(), clos.res.get_reg());
+    __vv_sub(static_cast<_Simd &>(*this).get_reg(),
+             static_cast<_Simd &>(*this).get_reg(), clos.res.get_reg());
+    return static_cast<_Simd &>(*this);
   }
 
-  __mlu_func__ _Simd &operator*=(const _Simd &other) {
-    __vv_mul(this->get_reg(), this->get_reg(), other.get_reg());
+  __mlu_func__ _Simd &operator*=(_Simd &other) {
+    __vv_mul(static_cast<_Simd &>(*this).get_reg(),
+             static_cast<_Simd &>(*this).get_reg(), other.get_reg());
+    return static_cast<_Simd &>(*this);
   }
 
-  template <typename Scalar> __mlu_func__ _Simd &operator*=(const Scalar &s) {
-    __vv_mul(this->get_reg(), this->get_reg(), s);
+  template <typename Scalar> __mlu_func__ _Simd &operator*=(Scalar &&s) {
+    __vv_mul(static_cast<_Simd &>(*this).get_reg(),
+             static_cast<_Simd &>(*this).get_reg(), s);
+    return static_cast<_Simd &>(*this);
   }
 
-  template <template <typename, class, class> class Closure, class L, class R>
-  __mlu_func__ _Simd &operator*=(Closure<T, L, R> &&clos) {
+  template <template <class, typename, class, class> class Closure, class Op,
+            class L, class R>
+  __mlu_func__ _Simd &operator*=(Closure<Op, T, L, R> &&clos) {
     clos.eval(clos.res);
-    __vv_mul(this->get_reg(), this->get_reg(), clos.res.get_reg());
+    __vv_mul(static_cast<_Simd &>(*this).get_reg(),
+             static_cast<_Simd &>(*this).get_reg(), clos.res.get_reg());
   }
   // ------
   // div
@@ -200,16 +187,16 @@ struct CommonOperation {
 
   // TODO: fix this, add (vv_uint32) transform
   template <typename Addr> __mlu_func__ void load(Addr *s) {
-    __vv_load(this->get_reg(), s);
+    __vv_load(static_cast<_Simd &>(*this).get_reg(), s);
   }
   template <typename Addr> __mlu_func__ void load(Addr *s, int len) {
-    __vv_load(this->get_reg(), s, len);
+    __vv_load(static_cast<_Simd &>(*this).get_reg(), s, len);
   }
   template <typename Addr> __mlu_func__ void store(Addr *d) {
-    __vv_store(d, this->get_reg());
+    __vv_store(d, static_cast<_Simd &>(*this).get_reg());
   }
   template <typename Addr> __mlu_func__ void store(Addr *d, int len) {
-    __vv_store(d, this->get_reg(), len);
+    __vv_store(d, static_cast<_Simd &>(*this).get_reg(), len);
   }
 };
 
@@ -227,38 +214,31 @@ struct simd_base<T, TypeTag::Integer> : public CommonOperation<T, simd_base> {
   // __mlu_func__ simd_base() = default;
   __mlu_func__ simd_base() { reg.reg.regNum = regCnt++; }
 
-  // __mlu_func__ simd_base &operator=(const simd_base &other) {
-  //   __vv_move(this->get_reg(), other.get_reg());
-  //   return *this;
-  // }
-
-  __mlu_func__ simd_base(const simd<T> &other) {
+  __mlu_func__ simd_base(simd<T> &other) {
     __vv_move(this->get_reg(), other.get_reg());
   }
 
-  template <typename S> __mlu_func__ simd_base(const S &scalar) {
-    __vv_move(this->get_reg(), static_cast<T>(scalar));
+  template <typename Scalar> __mlu_func__ simd_base(Scalar &&s) {
+    __vv_move(this->get_reg(), static_cast<T>(s));
   }
 
-  template <template <typename, class, class> class Closure, class L, class R>
-  __mlu_func__ simd_base(Closure<T, L, R> &&clos) {
+  template <template <class, typename, class, class> class Closure, class Oper,
+            class L, class R>
+  __mlu_func__ simd_base(Closure<Oper, T, L, R> &&clos) {
     clos.eval(*this);
   }
 
-  template <template <typename, class, class> class Closure, class L, class R>
-  __mlu_func__ simd<T> &operator=(Closure<T, L, R> &&clos) {
-    clos.eval(*this);
-    return *this;
-  }
-
-  __mlu_func__ UnClosure<T, _Simd, _Simd> operator-() const {
-    return UnClosure<T, _Simd, _Simd>(*this, __vv_neg, __vv_neg_m, __vv_neg_z);
+  __mlu_func__ UnClosure<__vec_neg, T, _Simd, _Simd> operator-() const {
+    return UnClosure<__vec_neg, T, _Simd, _Simd>(*this);
   }
   __mlu_func__ simd<T> &operator+() const { return *this; }
 
-  __mlu_func__ UnClosure<T, _Simd, _Simd> operator!() const {
-    return UnClosure<T, _Simd, _Simd>(*this, __vv_lnot, __vv_lnot_m,
-                                      __vv_lnot_z);
+  __mlu_func__ UnClosure<__vec_lnot, T, _Simd, _Simd> operator!() const {
+    return UnClosure<__vec_lnot, T, _Simd, _Simd>(*this);
+  }
+
+  __mlu_func__ UnClosure<__vec_not, T, _Simd, _Simd> operator~() const {
+    return UnClosure<__vec_not, T, _Simd, _Simd>(*this);
   }
 };
 
@@ -276,38 +256,27 @@ struct simd_base<T, TypeTag::Float> : public CommonOperation<T, simd_base> {
   // __mlu_func__ simd_base() = default;
   __mlu_func__ simd_base() { reg.reg.regNum = regCnt++; }
 
-  // __mlu_func__ simd_base &operator=(const simd_base &other) {
-  //   __vv_move(this->get_reg(), other.get_reg());
-  //   return *this;
-  // }
-
-  __mlu_func__ simd_base(const simd<T> &other) {
+  __mlu_func__ simd_base(simd<T> &other) {
     __vv_move(this->get_reg(), other.get_reg());
   }
 
-  template <typename S> __mlu_func__ simd_base(const S &scalar) {
-    __vv_move(this->get_reg(), static_cast<T>(scalar));
+  template <typename Scalar> __mlu_func__ simd_base(Scalar &&s) {
+    __vv_move(this->get_reg(), static_cast<T>(s));
   }
 
-  template <template <typename, class, class> class Closure, class L, class R>
-  __mlu_func__ simd_base(Closure<T, L, R> &&clos) {
+  template <template <class, typename, class, class> class Closure, class Oper,
+            class L, class R>
+  __mlu_func__ simd_base(Closure<Oper, T, L, R> &&clos) {
     clos.eval(*this);
   }
 
-  template <template <typename, class, class> class Closure, class L, class R>
-  __mlu_func__ simd<T> &operator=(Closure<T, L, R> &&clos) {
-    clos.eval(*this);
-    return *this;
+  __mlu_func__ UnClosure<__vec_neg, T, _Simd, _Simd> operator-() const {
+    return UnClosure<__vec_neg, T, _Simd, _Simd>(*this);
   }
+  __mlu_func__ simd_base &operator+() const { return *this; }
 
-  __mlu_func__ UnClosure<T, _Simd, _Simd> operator-() const {
-    return UnClosure<T, _Simd, _Simd>(*this, __vv_neg, __vv_neg_m, __vv_neg_z);
-  }
-  __mlu_func__ simd<T> &operator+() const { return *this; }
-
-  __mlu_func__ UnClosure<T, _Simd, _Simd> operator!() const {
-    return UnClosure<T, _Simd, _Simd>(*this, __vv_lnot, __vv_lnot_m,
-                                      __vv_lnot_z);
+  __mlu_func__ UnClosure<__vec_lnot, T, _Simd, _Simd> operator!() const {
+    return UnClosure<__vec_lnot, T, _Simd, _Simd>(*this);
   }
 };
 
@@ -321,29 +290,30 @@ template <> struct simd_base<bool, TypeTag::Pred> {
   }
 
   __mlu_func__ simd_base() = default;
-  __mlu_func__ simd_base(const simd<bool> &other) {
+  __mlu_func__ simd_base(simd_base &other) {
     __vv_move(this->get_reg(), other.get_reg());
   }
 
-  template <template <typename, class, class> class Closure, class L, class R>
-  __mlu_func__ simd_base(Closure<bool, L, R> &&clos) {
+  template <template <class, typename, class, class> class Closure, class Oper,
+            class L, class R>
+  __mlu_func__ simd_base(Closure<Oper, bool, L, R> &&clos) {
     clos.eval(*this);
   }
 
-  template <template <typename, class, class> class Closure, class T, class L,
-            class R>
-  __mlu_func__ simd_base(Closure<T, L, R> &&clos) {
+  template <template <class, typename, class, class> class Closure, class Oper,
+            class T, class L, class R>
+  __mlu_func__ simd_base(Closure<Oper, T, L, R> &&clos) {
     clos.set_eval(*this);
   }
 
   // TODO: change B to bool
   template <typename B, typename = MatchIf<B, bool>>
-  __mlu_func__ UnClosure<B, _Simd, _Simd> operator~() const {
-    return UnClosure<B, _Simd, _Simd>(*this, __vv_not, nullptr, nullptr);
+  __mlu_func__ UnClosure<__vec_not, B, _Simd, _Simd> operator~() const {
+    return UnClosure<__vec_not, B, _Simd, _Simd>(*this);
   }
 
   template <typename B, typename = MatchIf<B, bool>>
-  __mlu_func__ UnClosure<B, _Simd, _Simd> operator!() const {
-    return UnClosure<B, _Simd, _Simd>(*this, __vv_not, nullptr, nullptr);
+  __mlu_func__ UnClosure<__vec_not, B, _Simd, _Simd> operator!() const {
+    return UnClosure<__vec_not, B, _Simd, _Simd>(*this);
   }
 };
