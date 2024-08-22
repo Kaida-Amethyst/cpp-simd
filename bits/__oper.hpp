@@ -2,9 +2,6 @@
 
 #include "__simd.hpp"
 #include "vv-interface.h"
-#define __mlu_func__
-
-struct __zero_mask_tag {};
 
 struct __vec_neg {
 

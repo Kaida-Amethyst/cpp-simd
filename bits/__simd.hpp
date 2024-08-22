@@ -3,7 +3,6 @@
 #include "vv-interface.h"
 #include <cstdint>
 #include <iostream>
-#define __mlu_func__
 static int regCnt = 0;
 static int regCnt_p = 0; // only for vv_bool
 //-----------------

@@ -83,6 +83,12 @@ template <> struct UType<4> {
 };
 
 // -----------------------------------------------------
+
+// #define LIBDEVICE_ATTRIBUTE                                                    \
+//   __attribute__((__always_inline__)) __mlu_func__ inline
+#define __mlu_func__
+#define LIBDEVICE_ATTRIBUTE __mlu_func__ inline
+// -----------------------------------------------------
 template <typename Oper, typename T, class Loperand, class Roperand>
 struct BinClosure;
 template <typename Oper, typename T, class Dummy1, class Dummy2>
@@ -141,9 +147,20 @@ struct __vec_add;
 struct __vec_sub;
 struct __vec_mul;
 struct __vec_div;
-struct __vec_sll;
-struct __vec_srl;
-struct __vec_sra;
 struct __vec_and;
 struct __vec_or;
 struct __vec_xor;
+struct __vec_sll;
+struct __vec_srl;
+struct __vec_sra;
+struct __vec_eq;
+struct __vec_ne;
+struct __vec_gt;
+struct __vec_ge;
+struct __vec_lt;
+struct __vec_le;
+struct __vec_land;
+struct __vec_lor;
+struct __vec_lxor;
+
+struct __zero_mask_tag {};
