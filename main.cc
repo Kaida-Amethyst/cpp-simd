@@ -1,16 +1,15 @@
 #include "simd.hpp"
 
 int main() {
-  simd<float> a, b, c, d;
+  simd<float> a, b, c;
   float t = 5.0;
   float *s = nullptr;
   a.load(s);
   b.load(s);
-  c.load(s);
-  d.load(s);
 
-  d = a + b + 1.0f;
-  d = d + t;
-  d.store(s);
+  c = (2 + a) + (a + 3);
+  c.store(s);
+
+  simd<float> d = a + c;
   return 0;
 }
