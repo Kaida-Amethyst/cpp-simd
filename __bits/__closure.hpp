@@ -8,7 +8,9 @@ template <class Oper, typename T> struct UnClosure<Oper, T, _Simd, _Simd> {
   simd<bool> pred;
   __mlu_func__ UnClosure(simd<T> &oprand) : operand{oprand} {}
 
-  __mlu_func__ void eval(simd<T> &dst) { Oper(dst, operand); }
+  __mlu_func__ void eval(simd<T> &dst) {
+    Oper(dst.get_reg(), operand.get_reg());
+  }
 };
 
 template <class Oper, typename T> struct BinClosure<Oper, T, _Simd, _Simd> {
@@ -17,7 +19,9 @@ template <class Oper, typename T> struct BinClosure<Oper, T, _Simd, _Simd> {
   simd<T> res;
   simd<bool> pred;
   __mlu_func__ BinClosure(simd<T> &l, simd<T> &r) : left(l), right(r) {}
-  __mlu_func__ void eval(simd<T> &dst) { Oper()(dst, left, right); }
+  __mlu_func__ void eval(simd<T> &dst) {
+    Oper()(dst.get_reg(), left.get_reg(), right.get_reg());
+  }
 };
 
 template <class Oper, typename T> struct BinClosure<Oper, T, _Simd, _Scalar> {
@@ -26,7 +30,9 @@ template <class Oper, typename T> struct BinClosure<Oper, T, _Simd, _Scalar> {
   simd<T> res;
   simd<bool> pred;
   __mlu_func__ BinClosure(simd<T> &l, T r) : left(l), right(r) {}
-  __mlu_func__ void eval(simd<T> &dst) { Oper()(dst, left, right); }
+  __mlu_func__ void eval(simd<T> &dst) {
+    Oper()(dst.get_reg(), left.get_reg(), right);
+  }
 };
 
 template <class Oper, typename T> struct BinClosure<Oper, T, _Scalar, _Simd> {
@@ -35,7 +41,9 @@ template <class Oper, typename T> struct BinClosure<Oper, T, _Scalar, _Simd> {
   simd<T> res;
   simd<bool> pred;
   __mlu_func__ BinClosure(T l, simd<T> &r) : left(l), right(r) {}
-  __mlu_func__ void eval(simd<T> &dst) { Oper()(dst, left, right); }
+  __mlu_func__ void eval(simd<T> &dst) {
+    Oper()(dst.get_reg(), left, right.get_reg());
+  }
 };
 
 // -----------------------------------------------
