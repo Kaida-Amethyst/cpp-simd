@@ -1,9 +1,95 @@
 #define __mlu_func__
-#define LIBDEVICE_ATTRIBUTE __mlu_func__ inline
-
 #include "vec_interface.h"
-#include <iostream>
+
+#define LIBDEVICE_ATTRIBUTE __mlu_func__ inline
+//-------------------------------------------
+// Utils
+// ------------------------------------------
+#include <cstdint>
 #include <utility>
+
+struct false_type {
+  static constexpr bool value = false;
+};
+
+struct true_type {
+  static constexpr bool value = true;
+};
+
+template <bool Cond, typename T1, typename T2> struct ConditionalT;
+template <typename T1, typename T2> struct ConditionalT<true, T1, T2> {
+  using type = T1;
+};
+template <typename T1, typename T2> struct ConditionalT<false, T1, T2> {
+  using type = T2;
+};
+template <bool Cond, typename T1, typename T2>
+using Conditional = typename ConditionalT<Cond, T1, T2>::type;
+
+template <typename T1, typename T2> struct IsSameT {
+  static constexpr bool value = false;
+};
+
+template <typename T> struct IsSameT<T, T> {
+  static constexpr bool value = true;
+};
+
+template <typename... Types> struct TypeList;
+template <typename List> struct FrontT;
+template <typename Head, typename... Tail>
+struct FrontT<TypeList<Head, Tail...>> {
+  using type = Head;
+};
+
+template <typename List> using Front = typename FrontT<List>::type;
+template <typename List> struct PopFrontT;
+template <typename Head, typename... Tail>
+struct PopFrontT<TypeList<Head, Tail...>> {
+  using type = TypeList<Tail...>;
+};
+template <typename List> using PopFront = typename PopFrontT<List>::type;
+
+template <typename T, typename List> struct MatchIfT;
+
+template <typename T, typename... Types>
+struct MatchIfT<T, TypeList<Types...>> {
+  using first = Front<TypeList<Types...>>;
+  using rest = PopFront<TypeList<Types...>>;
+  using result_type = Conditional<IsSameT<T, first>::value, true_type,
+                                  typename MatchIfT<T, rest>::result_type>;
+};
+
+template <typename T> struct MatchIfT<T, TypeList<>> {
+  using result_type = false_type;
+};
+
+template <bool> struct EnableMatchIfT;
+template <> struct EnableMatchIfT<true> {
+  using type = true_type;
+};
+
+template <typename T, typename... Types> struct MatchIfLT {
+  using result_type = typename MatchIfT<T, TypeList<Types...>>::result_type;
+  using type = typename EnableMatchIfT<result_type::value>::type;
+};
+
+template <typename T, typename... Types>
+using MatchIf = typename MatchIfLT<T, Types...>::type;
+
+// -----------------------------------------------------
+
+template <int N> struct UType;
+template <> struct UType<1> {
+  using type = uint8_t;
+};
+template <> struct UType<2> {
+  using type = uint16_t;
+};
+template <> struct UType<4> {
+  using type = uint32_t;
+};
+
+// ------------------------------------------------------------
 
 class _Simd;
 class _Scalar;
@@ -47,8 +133,8 @@ template <> struct __VRegTypeT<bool> {
 
 template <typename T> using VRegType = typename __VRegTypeT<T>::type;
 
-#define UNARY_OP(funcname, dtype, stype)                                       \
-  LIBDEVICE_ATTRIBUTE void operator()(dtype &dst, stype src) {                 \
+#define UNARY_OP(funcname, vtype)                                              \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src) {                 \
     __vv_##funcname(dst, src);                                                 \
   }
 
@@ -75,40 +161,94 @@ template <typename T> using VRegType = typename __VRegTypeT<T>::type;
   }
 
 struct __vec_neg {
-  UNARY_OP(neg, vv_int32, vv_int32);
-  UNARY_OP(neg, vv_float, vv_float);
+  UNARY_OP(neg, vv_float);
+  UNARY_OP(neg, vv_int32);
+  UNARY_OP(neg, vv_int8);
+  UNARY_OP(neg, vv_int16);
 };
 
 struct __vec_add {
-  COMMUTABLE_BINARY_OP(add, vv_int32, int);
   COMMUTABLE_BINARY_OP(add, vv_float, float);
+  COMMUTABLE_BINARY_OP(add, vv_int32, int);
+  COMMUTABLE_BINARY_OP(add, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(add, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(add, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(add, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(add, vv_uint16, uint16_t);
 };
 
 struct __vec_mul {
-  COMMUTABLE_BINARY_OP(mul, vv_int32, int);
   COMMUTABLE_BINARY_OP(mul, vv_float, float);
+  COMMUTABLE_BINARY_OP(mul, vv_int32, int);
+  COMMUTABLE_BINARY_OP(mul, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(mul, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(mul, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(mul, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(mul, vv_uint16, uint16_t);
 };
 
 struct __vec_sub {
-  UNCOMMUTABLE_BINARY_OP(sub, vv_int32, int);
   UNCOMMUTABLE_BINARY_OP(sub, vv_float, float);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_int32, int);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_int8, int8_t);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_int16, int16_t);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_uint32, uint32_t);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_uint8, uint8_t);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_uint16, uint16_t);
 };
 
 struct __vec_div {
-  UNCOMMUTABLE_BINARY_OP(div, vv_int32, int);
   UNCOMMUTABLE_BINARY_OP(div, vv_float, float);
+  UNCOMMUTABLE_BINARY_OP(div, vv_int32, int);
+  // UNCOMMUTABLE_BINARY_OP(div, vv_int8, int8_t);
+  UNCOMMUTABLE_BINARY_OP(div, vv_int16, int16_t);
+  UNCOMMUTABLE_BINARY_OP(div, vv_uint32, uint32_t);
+  // UNCOMMUTABLE_BINARY_OP(div, vv_uint8, uint8_t);
+  UNCOMMUTABLE_BINARY_OP(div, vv_uint16, uint16_t);
 };
 
 struct __vec_and {
   COMMUTABLE_BINARY_OP(and, vv_int32, int);
+  COMMUTABLE_BINARY_OP(and, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(and, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(and, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(and, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(and, vv_uint16, uint16_t);
 };
 
 struct __vec_or {
   COMMUTABLE_BINARY_OP(or, vv_int32, int);
+  COMMUTABLE_BINARY_OP(or, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(or, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(or, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(or, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(or, vv_uint16, uint16_t);
 };
 
 struct __vec_xor {
   COMMUTABLE_BINARY_OP(xor, vv_int32, int);
+  COMMUTABLE_BINARY_OP(xor, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(xor, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(xor, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(xor, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(xor, vv_uint16, uint16_t);
+};
+struct __vec_sl {
+  COMMUTABLE_BINARY_OP(sll, vv_int32, int);
+  COMMUTABLE_BINARY_OP(sll, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(sll, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(sll, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(sll, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(sll, vv_uint16, uint16_t);
+};
+
+struct __vec_sr {
+  COMMUTABLE_BINARY_OP(srl, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(srl, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(srl, vv_uint16, uint16_t);
+  COMMUTABLE_BINARY_OP(sra, vv_int32, int);
+  COMMUTABLE_BINARY_OP(sra, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(sra, vv_int16, int16_t);
 };
 
 struct __vec_land {
@@ -451,13 +591,13 @@ struct CommonOperation {
   using SimdType = __simd<T, TypeTraits<T>::tag>;
 
   LIBDEVICE_ATTRIBUTE SimdType &operator=(SimdType &other) {
-    __vv_move(static_cast<SimdType &>(*this)->get_reg(), other.get_reg());
+    __vv_move(static_cast<SimdType &>(*this).get_reg(), other.get_reg());
     return static_cast<SimdType &>(*this);
   }
 
   template <typename Scalar>
   LIBDEVICE_ATTRIBUTE SimdType &operator=(Scalar &&s) {
-    __vv_move(static_cast<SimdType &>(*this)->get_reg(), static_cast<T>(s));
+    __vv_move(static_cast<SimdType &>(*this).get_reg(), static_cast<T>(s));
     return static_cast<SimdType &>(*this);
   };
 
@@ -466,6 +606,90 @@ struct CommonOperation {
     expr.eval(static_cast<SimdType &>(*this));
   };
   // +=, -=, *=, /=, lnot, neg,
+  /***********************************************************
+   * operator+=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE SimdType &operator+=(SimdType &other) {
+    __vv_add(static_cast<SimdType &>(*this).get_reg(), other.get_reg());
+    return static_cast<SimdType &>(*this);
+  }
+
+  template <typename Scalar>
+  LIBDEVICE_ATTRIBUTE SimdType &operator+=(Scalar &&s) {
+    __vv_add(static_cast<SimdType &>(*this).get_reg(), static_cast<T>(s));
+    return static_cast<SimdType &>(*this);
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE SimdType &operator+=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_add(static_cast<SimdType &>(*this).get_reg(),
+             static_cast<SimdType &>(*this).get_reg(), tmp.get_reg());
+  };
+  /***********************************************************
+   * operator-=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE SimdType &operator-=(SimdType &other) {
+    __vv_sub(static_cast<SimdType &>(*this).get_reg(), other.get_reg());
+    return static_cast<SimdType &>(*this);
+  }
+
+  template <typename Scalar>
+  LIBDEVICE_ATTRIBUTE SimdType &operator-=(Scalar &&s) {
+    __vv_sub(static_cast<SimdType &>(*this).get_reg(), static_cast<T>(s));
+    return static_cast<SimdType &>(*this);
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE SimdType &operator-=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_sub(static_cast<SimdType &>(*this).get_reg(),
+             static_cast<SimdType &>(*this).get_reg(), tmp.get_reg());
+  };
+  /***********************************************************
+   * operator*=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE SimdType &operator*=(SimdType &other) {
+    __vv_mul(static_cast<SimdType &>(*this).get_reg(), other.get_reg());
+    return static_cast<SimdType &>(*this);
+  }
+
+  template <typename Scalar>
+  LIBDEVICE_ATTRIBUTE SimdType &operator*=(Scalar &&s) {
+    __vv_mul(static_cast<SimdType &>(*this).get_reg(), static_cast<T>(s));
+    return static_cast<SimdType &>(*this);
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE SimdType &operator*=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_mul(static_cast<SimdType &>(*this).get_reg(),
+             static_cast<SimdType &>(*this).get_reg(), tmp.get_reg());
+  };
+  /***********************************************************
+   * operator/=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE SimdType &operator/=(SimdType &other) {
+    __vv_div(static_cast<SimdType &>(*this).get_reg(), other.get_reg());
+    return static_cast<SimdType &>(*this);
+  }
+
+  template <typename Scalar>
+  LIBDEVICE_ATTRIBUTE SimdType &operator/=(Scalar &&s) {
+    __vv_div(static_cast<SimdType &>(*this).get_reg(), static_cast<T>(s));
+    return static_cast<SimdType &>(*this);
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE SimdType &operator/=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_div(static_cast<SimdType &>(*this).get_reg(),
+             static_cast<SimdType &>(*this).get_reg(), tmp.get_reg());
+  };
 
   // load, store
   LIBDEVICE_ATTRIBUTE void load(T *data) {
@@ -492,6 +716,119 @@ struct __simd<T, TypeTag::Integral> : public CommonOperation<T, __simd> {
   LIBDEVICE_ATTRIBUTE __simd(__simd<T, TypeTag::Integral> &other) {
     __vv_move(reg, other.reg);
   }
+  /***********************************************************
+   * operator&=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE __simd &operator&=(__simd &other) {
+    __vv_and(reg, other.get_reg());
+    return *this;
+  }
+
+  template <typename Scalar>
+  LIBDEVICE_ATTRIBUTE __simd &operator&=(Scalar &&s) {
+    __vv_div(reg, static_cast<T>(s));
+    return *this;
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE __simd &operator&=(Expr<Closure, T> &&expr) {
+    __simd tmp;
+    expr.eval(tmp);
+    __vv_div(reg, reg, tmp.get_reg());
+  };
+  /***********************************************************
+   * operator|=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE __simd &operator|=(__simd &other) {
+    __vv_or(reg, other.get_reg());
+    return *this;
+  }
+
+  template <typename Scalar>
+  LIBDEVICE_ATTRIBUTE __simd &operator|=(Scalar &&s) {
+    __vv_or(reg, static_cast<T>(s));
+    return *this;
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE __simd &operator|=(Expr<Closure, T> &&expr) {
+    __simd tmp;
+    expr.eval(tmp);
+    __vv_or(reg, reg, tmp.get_reg());
+  };
+  /***********************************************************
+   * operator^=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE __simd &operator^=(__simd &other) {
+    __vv_xor(reg, other.get_reg());
+    return *this;
+  }
+
+  template <typename Scalar>
+  LIBDEVICE_ATTRIBUTE __simd &operator^=(Scalar &&s) {
+    __vv_xor(reg, static_cast<T>(s));
+    return *this;
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE __simd &operator^=(Expr<Closure, T> &&expr) {
+    __simd tmp;
+    expr.eval(tmp);
+    __vv_xor(reg, reg, tmp.get_reg());
+  };
+  /***********************************************************
+   * operator<<=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE __simd &operator<<=(__simd &other) {
+    __vv_sll(reg, other.get_reg());
+    return *this;
+  }
+
+  template <typename Scalar>
+  LIBDEVICE_ATTRIBUTE __simd &operator<<=(Scalar &&s) {
+    __vv_sll(reg, static_cast<T>(s));
+    return *this;
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE __simd &operator<<=(Expr<Closure, T> &&expr) {
+    __simd tmp;
+    expr.eval(tmp);
+    __vv_sll(reg, reg, tmp.get_reg());
+  };
+  /***********************************************************
+   * operator>>=
+   ***********************************************************/
+// #pragma push_macro("LIBDEVICE_ATTRIBUTE")
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++17-extensions"
+  LIBDEVICE_ATTRIBUTE __simd &operator>>=(__simd &other) {
+    if constexpr (std::is_signed<T>::value)
+      __vv_sra(reg, other.get_reg());
+    else
+      __vv_srl(reg, other.get_reg());
+    return *this;
+  }
+
+  template <typename Scalar>
+  LIBDEVICE_ATTRIBUTE __simd &operator>>=(Scalar &&s) {
+    if constexpr (std::is_signed<T>::value)
+      __vv_sra(reg, static_cast<T>(s));
+    else
+      __vv_srl(reg, static_cast<T>(s));
+    return *this;
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE __simd &operator>>=(Expr<Closure, T> &&expr) {
+    __simd tmp;
+    expr.eval(tmp);
+    if constexpr (std::is_signed<T>::value)
+      __vv_sra(reg, tmp.get_reg());
+    else
+      __vv_srl(reg, tmp.get_reg());
+  };
+#pragma clang diagnostic pop
 };
 
 template <typename T>
@@ -534,545 +871,88 @@ template <typename T> struct __simd<T, TypeTag::Predicate> {
 /***********************************************************
  * Addition, operator+
  ***********************************************************/
-template <typename T>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_add, T, _Simd, _Simd, _Null, _Null, T>, T>
-    operator+(simd<T> &lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_add, T, _Simd, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
+#define BINARY_OPERATIRON_DEFINE(sym, vec_fun)                                 \
+  template <typename T>                                                        \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<vec_fun, T, _Simd, _Simd, _Null, _Null, T>, T>           \
+      operator sym(simd<T> &lhs, simd<T> &rhs) {                               \
+    using ClosureType = BinClosure<vec_fun, T, _Simd, _Simd, _Null, _Null, T>; \
+    using ExprType = Expr<ClosureType, T>;                                     \
+    return ExprType(ClosureType(lhs, rhs));                                    \
+  }                                                                            \
+  template <typename T, typename ScalarT>                                      \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<vec_fun, T, _Simd, _Scalar, _Null, _Null, T>, T>         \
+      operator sym(simd<T> &lhs, ScalarT && rhs) {                             \
+    using ClosureType =                                                        \
+        BinClosure<vec_fun, T, _Simd, _Scalar, _Null, _Null, T>;               \
+    using ExprType = Expr<ClosureType, T>;                                     \
+    return ExprType(ClosureType(lhs, static_cast<T>(rhs)));                    \
+  }                                                                            \
+  template <typename T, typename ScalarT>                                      \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<vec_fun, T, _Scalar, _Simd, _Null, _Null, T>, T>         \
+      operator sym(ScalarT && lhs, simd<T> &rhs) {                             \
+    using ClosureType =                                                        \
+        BinClosure<vec_fun, T, _Scalar, _Simd, _Null, _Null, T>;               \
+    using ExprType = Expr<ClosureType, T>;                                     \
+    return ExprType(ClosureType(static_cast<T>(lhs), rhs));                    \
+  }                                                                            \
+  template <typename T, class Dom, typename ScalarT>                           \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<vec_fun, T, _Expr, _Scalar, Dom, _Null, T>, T>           \
+      operator sym(Expr<Dom, T> lhs, ScalarT rhs) {                            \
+    using ClosureType = BinClosure<vec_fun, T, _Expr, _Scalar, Dom, _Null, T>; \
+    using ExprType = Expr<ClosureType, T>;                                     \
+    return ExprType(ClosureType(lhs, static_cast<T>(rhs)));                    \
+  }                                                                            \
+  template <typename T, class Dom>                                             \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<vec_fun, T, _Expr, _Simd, Dom, _Null, T>, T>             \
+      operator sym(Expr<Dom, T> lhs, simd<T> &rhs) {                           \
+    using ClosureType = BinClosure<vec_fun, T, _Expr, _Simd, Dom, _Null, T>;   \
+    using ExprType = Expr<ClosureType, T>;                                     \
+    return ExprType(ClosureType(lhs, rhs));                                    \
+  }                                                                            \
+  template <typename T, class Dom, typename ScalarT>                           \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<vec_fun, T, _Scalar, _Expr, _Null, Dom, T>, T>           \
+      operator sym(ScalarT lhs, Expr<Dom, T> rhs) {                            \
+    using ClosureType = BinClosure<vec_fun, T, _Scalar, _Expr, _Null, Dom, T>; \
+    using ExprType = Expr<ClosureType, T>;                                     \
+    return ExprType(ClosureType(static_cast<T>(lhs), rhs));                    \
+  }                                                                            \
+  template <typename T, class Dom>                                             \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<vec_fun, T, _Simd, _Expr, _Null, Dom, T>, T>             \
+      operator sym(simd<T> &lhs, Expr<Dom, T> rhs) {                           \
+    using ClosureType = BinClosure<vec_fun, T, _Simd, _Expr, _Null, Dom, T>;   \
+    using ExprType = Expr<ClosureType, T>;                                     \
+    return ExprType(ClosureType(lhs, rhs));                                    \
+  }                                                                            \
+  template <typename T, class DomLeft, class DomRight>                         \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<vec_fun, T, _Expr, _Expr, DomLeft, DomRight, T>, T>      \
+      operator sym(Expr<DomLeft, T> lhs, Expr<DomRight, T> rhs) {              \
+    using ClosureType =                                                        \
+        BinClosure<vec_fun, T, _Expr, _Expr, DomLeft, DomRight, T>;            \
+    using ExprType = Expr<ClosureType, T>;                                     \
+    return ExprType(ClosureType(lhs, rhs));                                    \
+  }
 
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_add, T, _Simd, _Scalar, _Null, _Null, T>, T>
-    operator+(simd<T> &lhs, ScalarT &&rhs) {
-  using ClosureType = BinClosure<__vec_add, T, _Simd, _Scalar, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_add, T, _Scalar, _Simd, _Null, _Null, T>, T>
-    operator+(ScalarT &&lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_add, T, _Scalar, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_add, T, _Expr, _Scalar, Dom, _Null, T>, T>
-    operator+(Expr<Dom, T> lhs, ScalarT rhs) {
-  using ClosureType = BinClosure<__vec_add, T, _Expr, _Scalar, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_add, T, _Expr, _Simd, Dom, _Null, T>, T>
-    operator+(Expr<Dom, T> lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_add, T, _Expr, _Simd, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_add, T, _Scalar, _Expr, _Null, Dom, T>, T>
-    operator+(ScalarT lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_add, T, _Scalar, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_add, T, _Simd, _Expr, _Null, Dom, T>, T>
-    operator+(simd<T> &lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_add, T, _Simd, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class DomLeft, class DomRight>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_add, T, _Expr, _Expr, DomLeft, DomRight, T>, T>
-    operator+(Expr<DomLeft, T> lhs, Expr<DomRight, T> rhs) {
-  using ClosureType =
-      BinClosure<__vec_add, T, _Expr, _Expr, DomLeft, DomRight, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-/***********************************************************
- * Subtraction, operator-
- ***********************************************************/
-template <typename T>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_sub, T, _Simd, _Simd, _Null, _Null, T>, T>
-    operator-(simd<T> &lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_sub, T, _Simd, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_sub, T, _Simd, _Scalar, _Null, _Null, T>, T>
-    operator-(simd<T> &lhs, ScalarT &&rhs) {
-  using ClosureType = BinClosure<__vec_sub, T, _Simd, _Scalar, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_sub, T, _Scalar, _Simd, _Null, _Null, T>, T>
-    operator-(ScalarT &&lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_sub, T, _Scalar, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_sub, T, _Expr, _Scalar, Dom, _Null, T>, T>
-    operator-(Expr<Dom, T> lhs, ScalarT rhs) {
-  using ClosureType = BinClosure<__vec_sub, T, _Expr, _Scalar, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_sub, T, _Expr, _Simd, Dom, _Null, T>, T>
-    operator-(Expr<Dom, T> lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_sub, T, _Expr, _Simd, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_sub, T, _Scalar, _Expr, _Null, Dom, T>, T>
-    operator-(ScalarT lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_sub, T, _Scalar, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_sub, T, _Simd, _Expr, _Null, Dom, T>, T>
-    operator-(simd<T> &lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_sub, T, _Simd, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class DomLeft, class DomRight>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_sub, T, _Expr, _Expr, DomLeft, DomRight, T>, T>
-    operator-(Expr<DomLeft, T> lhs, Expr<DomRight, T> rhs) {
-  using ClosureType =
-      BinClosure<__vec_sub, T, _Expr, _Expr, DomLeft, DomRight, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-/***********************************************************
- * Multiplication, operator*
- ***********************************************************/
-template <typename T>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_mul, T, _Simd, _Simd, _Null, _Null, T>, T>
-    operator*(simd<T> &lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_mul, T, _Simd, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_mul, T, _Simd, _Scalar, _Null, _Null, T>, T>
-    operator*(simd<T> &lhs, ScalarT &&rhs) {
-  using ClosureType = BinClosure<__vec_mul, T, _Simd, _Scalar, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_mul, T, _Scalar, _Simd, _Null, _Null, T>, T>
-    operator*(ScalarT &&lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_mul, T, _Scalar, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_mul, T, _Expr, _Scalar, Dom, _Null, T>, T>
-    operator*(Expr<Dom, T> lhs, ScalarT rhs) {
-  using ClosureType = BinClosure<__vec_mul, T, _Expr, _Scalar, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_mul, T, _Expr, _Simd, Dom, _Null, T>, T>
-    operator*(Expr<Dom, T> lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_mul, T, _Expr, _Simd, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_mul, T, _Scalar, _Expr, _Null, Dom, T>, T>
-    operator*(ScalarT lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_mul, T, _Scalar, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_mul, T, _Simd, _Expr, _Null, Dom, T>, T>
-    operator*(simd<T> &lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_mul, T, _Simd, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class DomLeft, class DomRight>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_mul, T, _Expr, _Expr, DomLeft, DomRight, T>, T>
-    operator*(Expr<DomLeft, T> lhs, Expr<DomRight, T> rhs) {
-  using ClosureType =
-      BinClosure<__vec_mul, T, _Expr, _Expr, DomLeft, DomRight, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-/***********************************************************
- * Division, operator/
- ***********************************************************/
-template <typename T>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_div, T, _Simd, _Simd, _Null, _Null, T>, T>
-    operator/(simd<T> &lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_div, T, _Simd, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_div, T, _Simd, _Scalar, _Null, _Null, T>, T>
-    operator/(simd<T> &lhs, ScalarT &&rhs) {
-  using ClosureType = BinClosure<__vec_div, T, _Simd, _Scalar, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_div, T, _Scalar, _Simd, _Null, _Null, T>, T>
-    operator/(ScalarT &&lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_div, T, _Scalar, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_div, T, _Expr, _Scalar, Dom, _Null, T>, T>
-    operator/(Expr<Dom, T> lhs, ScalarT rhs) {
-  using ClosureType = BinClosure<__vec_div, T, _Expr, _Scalar, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_div, T, _Expr, _Simd, Dom, _Null, T>, T>
-    operator/(Expr<Dom, T> lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_div, T, _Expr, _Simd, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_div, T, _Scalar, _Expr, _Null, Dom, T>, T>
-    operator/(ScalarT lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_div, T, _Scalar, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_div, T, _Simd, _Expr, _Null, Dom, T>, T>
-    operator/(simd<T> &lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_div, T, _Simd, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class DomLeft, class DomRight>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_div, T, _Expr, _Expr, DomLeft, DomRight, T>, T>
-    operator/(Expr<DomLeft, T> lhs, Expr<DomRight, T> rhs) {
-  using ClosureType =
-      BinClosure<__vec_div, T, _Expr, _Expr, DomLeft, DomRight, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-/***********************************************************
- * Bitwise Operations: &, |, ^
- ***********************************************************/
-
-/***********************************************************
- * And, operator&
- ***********************************************************/
-template <typename T>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_and, T, _Simd, _Simd, _Null, _Null, T>, T>
-    operator&(simd<T> &lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_and, T, _Simd, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_and, T, _Simd, _Scalar, _Null, _Null, T>, T>
-    operator&(simd<T> &lhs, ScalarT &&rhs) {
-  using ClosureType = BinClosure<__vec_and, T, _Simd, _Scalar, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_and, T, _Scalar, _Simd, _Null, _Null, T>, T>
-    operator&(ScalarT &&lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_and, T, _Scalar, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_and, T, _Expr, _Scalar, Dom, _Null, T>, T>
-    operator&(Expr<Dom, T> lhs, ScalarT rhs) {
-  using ClosureType = BinClosure<__vec_and, T, _Expr, _Scalar, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_and, T, _Expr, _Simd, Dom, _Null, T>, T>
-    operator&(Expr<Dom, T> lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_and, T, _Expr, _Simd, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_and, T, _Scalar, _Expr, _Null, Dom, T>, T>
-    operator&(ScalarT lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_and, T, _Scalar, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_and, T, _Simd, _Expr, _Null, Dom, T>, T>
-    operator&(simd<T> &lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_and, T, _Simd, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class DomLeft, class DomRight>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_and, T, _Expr, _Expr, DomLeft, DomRight, T>, T>
-    operator&(Expr<DomLeft, T> lhs, Expr<DomRight, T> rhs) {
-  using ClosureType =
-      BinClosure<__vec_and, T, _Expr, _Expr, DomLeft, DomRight, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-/***********************************************************
- * Or, operator|
- ***********************************************************/
-template <typename T>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_or, T, _Simd, _Simd, _Null, _Null, T>, T>
-    operator|(simd<T> &lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_or, T, _Simd, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_or, T, _Simd, _Scalar, _Null, _Null, T>, T>
-    operator|(simd<T> &lhs, ScalarT &&rhs) {
-  using ClosureType = BinClosure<__vec_or, T, _Simd, _Scalar, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_or, T, _Scalar, _Simd, _Null, _Null, T>, T>
-    operator|(ScalarT &&lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_or, T, _Scalar, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_or, T, _Expr, _Scalar, Dom, _Null, T>, T>
-    operator|(Expr<Dom, T> lhs, ScalarT rhs) {
-  using ClosureType = BinClosure<__vec_or, T, _Expr, _Scalar, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_or, T, _Expr, _Simd, Dom, _Null, T>, T>
-    operator|(Expr<Dom, T> lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_or, T, _Expr, _Simd, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_or, T, _Scalar, _Expr, _Null, Dom, T>, T>
-    operator|(ScalarT lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_or, T, _Scalar, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_or, T, _Simd, _Expr, _Null, Dom, T>, T>
-    operator|(simd<T> &lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_or, T, _Simd, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class DomLeft, class DomRight>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_or, T, _Expr, _Expr, DomLeft, DomRight, T>, T>
-    operator|(Expr<DomLeft, T> lhs, Expr<DomRight, T> rhs) {
-  using ClosureType =
-      BinClosure<__vec_or, T, _Expr, _Expr, DomLeft, DomRight, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-/***********************************************************
- * Xor, operator^
- ***********************************************************/
-template <typename T>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_xor, T, _Simd, _Simd, _Null, _Null, T>, T>
-    operator^(simd<T> &lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_xor, T, _Simd, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_xor, T, _Simd, _Scalar, _Null, _Null, T>, T>
-    operator^(simd<T> &lhs, ScalarT &&rhs) {
-  using ClosureType = BinClosure<__vec_xor, T, _Simd, _Scalar, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_xor, T, _Scalar, _Simd, _Null, _Null, T>, T>
-    operator^(ScalarT &&lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_xor, T, _Scalar, _Simd, _Null, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_xor, T, _Expr, _Scalar, Dom, _Null, T>, T>
-    operator^(Expr<Dom, T> lhs, ScalarT rhs) {
-  using ClosureType = BinClosure<__vec_xor, T, _Expr, _Scalar, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, static_cast<T>(rhs)));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_xor, T, _Expr, _Simd, Dom, _Null, T>, T>
-    operator^(Expr<Dom, T> lhs, simd<T> &rhs) {
-  using ClosureType = BinClosure<__vec_xor, T, _Expr, _Simd, Dom, _Null, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class Dom, typename ScalarT>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_xor, T, _Scalar, _Expr, _Null, Dom, T>, T>
-    operator^(ScalarT lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_xor, T, _Scalar, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(static_cast<T>(lhs), rhs));
-}
-
-template <typename T, class Dom>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_xor, T, _Simd, _Expr, _Null, Dom, T>, T>
-    operator^(simd<T> &lhs, Expr<Dom, T> rhs) {
-  using ClosureType = BinClosure<__vec_xor, T, _Simd, _Expr, _Null, Dom, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-
-template <typename T, class DomLeft, class DomRight>
-LIBDEVICE_ATTRIBUTE
-    Expr<BinClosure<__vec_xor, T, _Expr, _Expr, DomLeft, DomRight, T>, T>
-    operator^(Expr<DomLeft, T> lhs, Expr<DomRight, T> rhs) {
-  using ClosureType =
-      BinClosure<__vec_xor, T, _Expr, _Expr, DomLeft, DomRight, T>;
-  using ExprType = Expr<ClosureType, T>;
-  return ExprType(ClosureType(lhs, rhs));
-}
-/***********************************************************
- * Logical Operations: &&, ||
- ***********************************************************/
-// Note: Please note that return type is bool
-
-/***********************************************************
- * Logical And, operator&&
- ***********************************************************/
+//--------
+BINARY_OPERATIRON_DEFINE(+, __vec_add);
+BINARY_OPERATIRON_DEFINE(-, __vec_sub);
+BINARY_OPERATIRON_DEFINE(*, __vec_mul);
+BINARY_OPERATIRON_DEFINE(/, __vec_div);
+// BINARY_OPERATIRON_DEFINE(%, __vec_rem);
+BINARY_OPERATIRON_DEFINE(&, __vec_and);
+BINARY_OPERATIRON_DEFINE(|, __vec_or);
+BINARY_OPERATIRON_DEFINE(^, __vec_xor);
+BINARY_OPERATIRON_DEFINE(&&, __vec_land);
+BINARY_OPERATIRON_DEFINE(||, __vec_lor);
+BINARY_OPERATIRON_DEFINE(>>, __vec_sl);
+BINARY_OPERATIRON_DEFINE(<<, __vec_sr);
 
 /***********************************************************
  * Comparison Operations: ==, !=, <, >, <=, >=
