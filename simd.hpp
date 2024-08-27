@@ -160,6 +160,19 @@ template <typename T> using VRegType = typename __VRegTypeT<T>::type;
     __vv_##funcname(dst, src1, src2);                                          \
   }
 
+#define SHIFT_OP(funcname, vtype, stype)                                       \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }
+
+#define RELATION_OP_SETP(funcname, vtype)                                      \
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vtype src1, vtype src2) {  \
+    __vv_setp_##funcname(dst, src1, src2);                                     \
+  }
+
 struct __vec_neg {
   UNARY_OP(neg, vv_float);
   UNARY_OP(neg, vv_int32);
@@ -234,33 +247,134 @@ struct __vec_xor {
   COMMUTABLE_BINARY_OP(xor, vv_uint16, uint16_t);
 };
 struct __vec_sl {
-  COMMUTABLE_BINARY_OP(sll, vv_int32, int);
-  COMMUTABLE_BINARY_OP(sll, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(sll, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(sll, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(sll, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(sll, vv_uint16, uint16_t);
+  SHIFT_OP(sll, vv_int32, int);
+  SHIFT_OP(sll, vv_int8, int8_t);
+  SHIFT_OP(sll, vv_int16, int16_t);
+  SHIFT_OP(sll, vv_uint32, uint32_t);
+  SHIFT_OP(sll, vv_uint8, uint8_t);
+  SHIFT_OP(sll, vv_uint16, uint16_t);
 };
 
 struct __vec_sr {
-  COMMUTABLE_BINARY_OP(srl, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(srl, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(srl, vv_uint16, uint16_t);
-  COMMUTABLE_BINARY_OP(sra, vv_int32, int);
-  COMMUTABLE_BINARY_OP(sra, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(sra, vv_int16, int16_t);
+  SHIFT_OP(srl, vv_uint32, uint32_t);
+  SHIFT_OP(srl, vv_uint8, uint8_t);
+  SHIFT_OP(srl, vv_uint16, uint16_t);
+  SHIFT_OP(sra, vv_int32, int);
+  SHIFT_OP(sra, vv_int8, int8_t);
+  SHIFT_OP(sra, vv_int16, int16_t);
 };
 
 struct __vec_land {
-  UNCOMMUTABLE_BINARY_OP(land, vv_int32, int);
+  COMMUTABLE_BINARY_OP(land, vv_int32, int);
+  COMMUTABLE_BINARY_OP(land, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(land, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(land, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(land, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(land, vv_uint16, uint16_t);
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
+                                      vv_bool src2) {
+    __vv_and(dst, src1, src2);
+  }
 };
 
 struct __vec_lor {
-  UNCOMMUTABLE_BINARY_OP(lor, vv_int32, int);
+  COMMUTABLE_BINARY_OP(lor, vv_int32, int);
+  COMMUTABLE_BINARY_OP(lor, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(lor, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint16, uint16_t);
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
+                                      vv_bool src2) {
+    __vv_or(dst, src1, src2);
+  }
 };
 
 struct __vec_lxor {
-  UNCOMMUTABLE_BINARY_OP(lxor, vv_int32, int);
+  COMMUTABLE_BINARY_OP(lor, vv_int32, int);
+  COMMUTABLE_BINARY_OP(lor, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(lor, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint16, uint16_t);
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
+                                      vv_bool src2) {
+    __vv_xor(dst, src1, src2);
+  }
+};
+
+struct __vec_eq {
+  COMMUTABLE_BINARY_OP(eq, vv_float, float);
+  COMMUTABLE_BINARY_OP(eq, vv_int32, int);
+  COMMUTABLE_BINARY_OP(eq, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(eq, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(eq, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(eq, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(eq, vv_uint16, uint16_t);
+  RELATION_OP_SETP(eq, vv_float);
+  RELATION_OP_SETP(eq, vv_int32);
+  RELATION_OP_SETP(eq, vv_int8);
+  RELATION_OP_SETP(eq, vv_int16);
+  RELATION_OP_SETP(eq, vv_uint32);
+  RELATION_OP_SETP(eq, vv_uint8);
+  RELATION_OP_SETP(eq, vv_uint16);
+};
+
+struct __vec_ne {
+  COMMUTABLE_BINARY_OP(ne, vv_float, float);
+  COMMUTABLE_BINARY_OP(ne, vv_int32, int);
+  COMMUTABLE_BINARY_OP(ne, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(ne, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(ne, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(ne, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(ne, vv_uint16, uint16_t);
+  RELATION_OP_SETP(ne, vv_float);
+  RELATION_OP_SETP(ne, vv_int32);
+  RELATION_OP_SETP(ne, vv_int8);
+  RELATION_OP_SETP(ne, vv_int16);
+  RELATION_OP_SETP(ne, vv_uint32);
+  RELATION_OP_SETP(ne, vv_uint8);
+  RELATION_OP_SETP(ne, vv_uint16);
+};
+
+struct __vec_gt {
+  RELATION_OP_SETP(gt, vv_float);
+  RELATION_OP_SETP(gt, vv_int32);
+  RELATION_OP_SETP(gt, vv_int8);
+  RELATION_OP_SETP(gt, vv_int16);
+  RELATION_OP_SETP(gt, vv_uint32);
+  RELATION_OP_SETP(gt, vv_uint8);
+  RELATION_OP_SETP(gt, vv_uint16);
+};
+
+struct __vec_lt {
+  RELATION_OP_SETP(lt, vv_float);
+  RELATION_OP_SETP(lt, vv_int32);
+  RELATION_OP_SETP(lt, vv_int8);
+  RELATION_OP_SETP(lt, vv_int16);
+  RELATION_OP_SETP(lt, vv_uint32);
+  RELATION_OP_SETP(lt, vv_uint8);
+  RELATION_OP_SETP(lt, vv_uint16);
+};
+
+struct __vec_ge {
+  RELATION_OP_SETP(ge, vv_float);
+  RELATION_OP_SETP(ge, vv_int32);
+  RELATION_OP_SETP(ge, vv_int8);
+  RELATION_OP_SETP(ge, vv_int16);
+  RELATION_OP_SETP(ge, vv_uint32);
+  RELATION_OP_SETP(ge, vv_uint8);
+  RELATION_OP_SETP(ge, vv_uint16);
+};
+
+struct __vec_le {
+  RELATION_OP_SETP(le, vv_float);
+  RELATION_OP_SETP(le, vv_int32);
+  RELATION_OP_SETP(le, vv_int8);
+  RELATION_OP_SETP(le, vv_int16);
+  RELATION_OP_SETP(le, vv_uint32);
+  RELATION_OP_SETP(le, vv_uint8);
+  RELATION_OP_SETP(le, vv_uint16);
 };
 
 enum class TypeTag {
