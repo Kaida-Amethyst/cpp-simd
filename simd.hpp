@@ -8,19 +8,6 @@
 #include <cstdint>
 #include <utility>
 
-// -----------------------------------------------------
-
-template <int N> struct UType;
-template <> struct UType<1> {
-  using type = uint8_t;
-};
-template <> struct UType<2> {
-  using type = uint16_t;
-};
-template <> struct UType<4> {
-  using type = uint32_t;
-};
-
 // ------------------------------------------------------------
 
 class _Simd;
@@ -682,6 +669,28 @@ struct __simd<T, TypeTag::Integral> : public CommonOperation<T, __simd> {
       __vv_srl(reg, tmp.get_reg());
   };
 #pragma clang diagnostic pop
+  /***********************************************************
+   * operator-
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE Expr<UnClosure<__vec_neg, T, _Simd, _Null, T>, T>
+  operator-() {
+    using ClosureType = UnClosure<__vec_neg, T, _Simd, _Null, T>;
+    using ExprType = Expr<ClosureType, T>;
+    return ExprType(ClosureType(static_cast<__simd &>(*this)));
+  }
+  /***********************************************************
+   * operator~
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE Expr<UnClosure<__vec_not, T, _Simd, _Null, T>, T>
+  operator~() {
+    using ClosureType = UnClosure<__vec_not, T, _Simd, _Null, T>;
+    using ExprType = Expr<ClosureType, T>;
+    return ExprType(ClosureType(static_cast<__simd &>(*this)));
+  }
+  /***********************************************************
+   * operator+
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE __simd &operator+() { return *this; }
 };
 
 template <typename T>
@@ -711,14 +720,20 @@ template <typename T> struct __simd<T, TypeTag::Predicate> {
   LIBDEVICE_ATTRIBUTE __simd() = default;
 
   LIBDEVICE_ATTRIBUTE VRegType<T> &get_reg() { return reg; }
+
+  LIBDEVICE_ATTRIBUTE Expr<UnClosure<__vec_not, T, _Simd, _Null, bool>, bool>
+  operator!() {
+    using ClosureType = UnClosure<__vec_not, T, _Simd, _Null, bool>;
+    using ExprType = Expr<ClosureType, bool>;
+    return ExprType(ClosureType(static_cast<__simd &>(*this)));
+  }
 };
 
 /***********************************************************
  * Operations
  ***********************************************************/
-
 /***********************************************************
- * Addition, operator+
+ * Binary Operations: +, -, *, /, %, &, |, ^, &&, ||, >>, <<
  ***********************************************************/
 #define BINARY_OPERATIRON_DEFINE(sym, vec_fun)                                 \
   template <typename T>                                                        \
@@ -966,6 +981,50 @@ LIBDEVICE_ATTRIBUTE
       BinClosure<__vec_or, bool, _Expr, _Expr, DomLeft, DomRight, bool>;
   using ExprType = Expr<ClosureType, bool>;
   return ExprType(ClosureType(lhs, rhs));
+}
+
+/***********************************************************
+ * Unary Operations: +, -, ~, !
+ ***********************************************************/
+template <typename T>
+LIBDEVICE_ATTRIBUTE Expr<UnClosure<__vec_neg, T, _Simd, _Null, T>, T>
+operator-(simd<T> &operand) {
+  using ClosureType = UnClosure<__vec_neg, T, _Simd, _Null, T>;
+  using ExprType = Expr<ClosureType, T>;
+  return ExprType(ClosureType(operand));
+}
+template <typename T, class Dom>
+LIBDEVICE_ATTRIBUTE Expr<UnClosure<__vec_neg, T, _Expr, Dom, T>, T>
+operator-(Expr<Dom, T> operand) {
+  using ClosureType = UnClosure<__vec_neg, T, _Expr, Dom, T>;
+  using ExprType = Expr<ClosureType, T>;
+  return ExprType(ClosureType(operand));
+}
+template <typename T>
+LIBDEVICE_ATTRIBUTE Expr<UnClosure<__vec_not, T, _Simd, _Null, T>, T>
+operator~(simd<T> &operand) {
+  using ClosureType = UnClosure<__vec_not, T, _Simd, _Null, T>;
+  using ExprType = Expr<ClosureType, T>;
+  return ExprType(ClosureType(operand));
+}
+template <typename T, class Dom>
+LIBDEVICE_ATTRIBUTE Expr<UnClosure<__vec_not, T, _Expr, Dom, T>, T>
+operator~(Expr<Dom, T> operand) {
+  using ClosureType = UnClosure<__vec_not, T, _Expr, Dom, T>;
+  using ExprType = Expr<ClosureType, T>;
+  return ExprType(ClosureType(operand));
+}
+template <typename Clos, typename RT>
+LIBDEVICE_ATTRIBUTE Expr<Clos, RT> operator+(Expr<Clos, RT> operand) {
+  return operand;
+}
+
+template <class Dom>
+LIBDEVICE_ATTRIBUTE Expr<UnClosure<__vec_not, bool, _Expr, Dom, bool>, bool>
+operator!(Expr<Dom, bool> operand) {
+  using ClosureType = UnClosure<__vec_not, bool, _Expr, Dom, bool>;
+  using ExprType = Expr<ClosureType, bool>;
+  return ExprType(ClosureType(operand));
 }
 
 // Oper Definations
