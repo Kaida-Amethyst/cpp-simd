@@ -8,74 +8,6 @@
 #include <cstdint>
 #include <utility>
 
-struct false_type {
-  static constexpr bool value = false;
-};
-
-struct true_type {
-  static constexpr bool value = true;
-};
-
-template <bool Cond, typename T1, typename T2> struct ConditionalT;
-template <typename T1, typename T2> struct ConditionalT<true, T1, T2> {
-  using type = T1;
-};
-template <typename T1, typename T2> struct ConditionalT<false, T1, T2> {
-  using type = T2;
-};
-template <bool Cond, typename T1, typename T2>
-using Conditional = typename ConditionalT<Cond, T1, T2>::type;
-
-template <typename T1, typename T2> struct IsSameT {
-  static constexpr bool value = false;
-};
-
-template <typename T> struct IsSameT<T, T> {
-  static constexpr bool value = true;
-};
-
-template <typename... Types> struct TypeList;
-template <typename List> struct FrontT;
-template <typename Head, typename... Tail>
-struct FrontT<TypeList<Head, Tail...>> {
-  using type = Head;
-};
-
-template <typename List> using Front = typename FrontT<List>::type;
-template <typename List> struct PopFrontT;
-template <typename Head, typename... Tail>
-struct PopFrontT<TypeList<Head, Tail...>> {
-  using type = TypeList<Tail...>;
-};
-template <typename List> using PopFront = typename PopFrontT<List>::type;
-
-template <typename T, typename List> struct MatchIfT;
-
-template <typename T, typename... Types>
-struct MatchIfT<T, TypeList<Types...>> {
-  using first = Front<TypeList<Types...>>;
-  using rest = PopFront<TypeList<Types...>>;
-  using result_type = Conditional<IsSameT<T, first>::value, true_type,
-                                  typename MatchIfT<T, rest>::result_type>;
-};
-
-template <typename T> struct MatchIfT<T, TypeList<>> {
-  using result_type = false_type;
-};
-
-template <bool> struct EnableMatchIfT;
-template <> struct EnableMatchIfT<true> {
-  using type = true_type;
-};
-
-template <typename T, typename... Types> struct MatchIfLT {
-  using result_type = typename MatchIfT<T, TypeList<Types...>>::result_type;
-  using type = typename EnableMatchIfT<result_type::value>::type;
-};
-
-template <typename T, typename... Types>
-using MatchIf = typename MatchIfLT<T, Types...>::type;
-
 // -----------------------------------------------------
 
 template <int N> struct UType;
@@ -134,6 +66,8 @@ template <> struct __VRegTypeT<bool> {
 template <typename T> using VRegType = typename __VRegTypeT<T>::type;
 
 struct __vec_neg;
+struct __vec_not;
+struct __vec_lnot;
 struct __vec_add;
 struct __vec_mul;
 struct __vec_sub;
@@ -581,6 +515,34 @@ struct CommonOperation {
     __vv_div(static_cast<SimdType &>(*this).get_reg(),
              static_cast<SimdType &>(*this).get_reg(), tmp.get_reg());
   };
+  /***********************************************************
+   * operator++
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE SimdType &operator++() {
+    __vv_add(static_cast<SimdType &>(*this).get_reg(),
+             static_cast<SimdType &>(*this).get_reg(), (T)1);
+    return static_cast<SimdType &>(*this);
+  }
+  LIBDEVICE_ATTRIBUTE SimdType operator++(int) {
+    SimdType tmp(static_cast<SimdType &>(*this));
+    __vv_add(static_cast<SimdType &>(*this).get_reg(),
+             static_cast<SimdType &>(*this).get_reg(), (T)1);
+    return tmp;
+  }
+  /***********************************************************
+   * operator--
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE SimdType &operator--() {
+    __vv_sub(static_cast<SimdType &>(*this).get_reg(),
+             static_cast<SimdType &>(*this).get_reg(), (T)1);
+    return static_cast<SimdType &>(*this);
+  }
+  LIBDEVICE_ATTRIBUTE SimdType operator--(int) {
+    SimdType tmp(static_cast<SimdType &>(*this));
+    __vv_sub(static_cast<SimdType &>(*this).get_reg(),
+             static_cast<SimdType &>(*this).get_reg(), (T)1);
+    return tmp;
+  }
 
   // load, store
   LIBDEVICE_ATTRIBUTE void load(T *data) {
@@ -756,10 +718,6 @@ template <typename T> struct __simd<T, TypeTag::Predicate> {
  ***********************************************************/
 
 /***********************************************************
- * Basic Binary Operations: +, -, *, /
- ***********************************************************/
-
-/***********************************************************
  * Addition, operator+
  ***********************************************************/
 #define BINARY_OPERATIRON_DEFINE(sym, vec_fun)                                 \
@@ -840,8 +798,8 @@ BINARY_OPERATIRON_DEFINE(/, __vec_div);
 BINARY_OPERATIRON_DEFINE(&, __vec_and);
 BINARY_OPERATIRON_DEFINE(|, __vec_or);
 BINARY_OPERATIRON_DEFINE(^, __vec_xor);
-BINARY_OPERATIRON_DEFINE(&&, __vec_land);
-BINARY_OPERATIRON_DEFINE(||, __vec_lor);
+// BINARY_OPERATIRON_DEFINE(&&, __vec_land);
+// BINARY_OPERATIRON_DEFINE(||, __vec_lor);
 BINARY_OPERATIRON_DEFINE(>>, __vec_sl);
 BINARY_OPERATIRON_DEFINE(<<, __vec_sr);
 
@@ -930,7 +888,87 @@ RELATION_OPERATIRON_DEFINE(<, __vec_lt);
 RELATION_OPERATIRON_DEFINE(>=, __vec_ge);
 RELATION_OPERATIRON_DEFINE(<=, __vec_le);
 
-//
+LIBDEVICE_ATTRIBUTE
+Expr<BinClosure<__vec_and, bool, _Simd, _Simd, _Null, _Null, bool>, bool>
+operator&&(simd<bool> &lhs, simd<bool> &rhs) {
+  using ClosureType =
+      BinClosure<__vec_and, bool, _Simd, _Simd, _Null, _Null, bool>;
+  using ExprType = Expr<ClosureType, bool>;
+  return ExprType(ClosureType(lhs, rhs));
+}
+
+template <class Dom>
+LIBDEVICE_ATTRIBUTE
+    Expr<BinClosure<__vec_and, bool, _Expr, _Simd, Dom, _Null, bool>, bool>
+    operator&&(Expr<Dom, bool> lhs, simd<bool> &rhs) {
+  using ClosureType =
+      BinClosure<__vec_and, bool, _Expr, _Simd, Dom, _Null, bool>;
+  using ExprType = Expr<ClosureType, bool>;
+  return ExprType(ClosureType(lhs, rhs));
+}
+
+template <class Dom>
+LIBDEVICE_ATTRIBUTE
+    Expr<BinClosure<__vec_and, bool, _Simd, _Expr, _Null, Dom, bool>, bool>
+    operator&&(simd<bool> &lhs, Expr<Dom, bool> rhs) {
+  using ClosureType =
+      BinClosure<__vec_and, bool, _Simd, _Expr, _Null, Dom, bool>;
+  using ExprType = Expr<ClosureType, bool>;
+  return ExprType(ClosureType(lhs, rhs));
+}
+
+template <class DomLeft, class DomRight>
+LIBDEVICE_ATTRIBUTE
+    Expr<BinClosure<__vec_and, bool, _Expr, _Expr, DomLeft, DomRight, bool>,
+         bool>
+    operator&&(Expr<DomLeft, bool> lhs, Expr<DomRight, bool> rhs) {
+  using ClosureType =
+      BinClosure<__vec_and, bool, _Expr, _Expr, DomLeft, DomRight, bool>;
+  using ExprType = Expr<ClosureType, bool>;
+  return ExprType(ClosureType(lhs, rhs));
+}
+
+LIBDEVICE_ATTRIBUTE
+Expr<BinClosure<__vec_or, bool, _Simd, _Simd, _Null, _Null, bool>, bool>
+operator||(simd<bool> &lhs, simd<bool> &rhs) {
+  using ClosureType =
+      BinClosure<__vec_or, bool, _Simd, _Simd, _Null, _Null, bool>;
+  using ExprType = Expr<ClosureType, bool>;
+  return ExprType(ClosureType(lhs, rhs));
+}
+
+template <class Dom>
+LIBDEVICE_ATTRIBUTE
+    Expr<BinClosure<__vec_or, bool, _Expr, _Simd, Dom, _Null, bool>, bool>
+    operator||(Expr<Dom, bool> lhs, simd<bool> &rhs) {
+  using ClosureType =
+      BinClosure<__vec_or, bool, _Expr, _Simd, Dom, _Null, bool>;
+  using ExprType = Expr<ClosureType, bool>;
+  return ExprType(ClosureType(lhs, rhs));
+}
+
+template <class Dom>
+LIBDEVICE_ATTRIBUTE
+    Expr<BinClosure<__vec_or, bool, _Simd, _Expr, _Null, Dom, bool>, bool>
+    operator||(simd<bool> &lhs, Expr<Dom, bool> rhs) {
+  using ClosureType =
+      BinClosure<__vec_or, bool, _Simd, _Expr, _Null, Dom, bool>;
+  using ExprType = Expr<ClosureType, bool>;
+  return ExprType(ClosureType(lhs, rhs));
+}
+
+template <class DomLeft, class DomRight>
+LIBDEVICE_ATTRIBUTE
+    Expr<BinClosure<__vec_or, bool, _Expr, _Expr, DomLeft, DomRight, bool>,
+         bool>
+    operator||(Expr<DomLeft, bool> lhs, Expr<DomRight, bool> rhs) {
+  using ClosureType =
+      BinClosure<__vec_or, bool, _Expr, _Expr, DomLeft, DomRight, bool>;
+  using ExprType = Expr<ClosureType, bool>;
+  return ExprType(ClosureType(lhs, rhs));
+}
+
+// Oper Definations
 
 #define UNARY_OP(funcname, vtype)                                              \
   LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src) {                 \
@@ -976,32 +1014,6 @@ RELATION_OPERATIRON_DEFINE(<=, __vec_le);
   }                                                                            \
   LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, stype src1, vtype src2) {  \
     __vv_setp_##revfuncname(dst, src2, src1);                                  \
-  }
-
-// lt, ge, rev is ge, lt
-#define RELATION_OP_GETVALUE(funcname, revfuncname, vtype, stype)              \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
-    __vv_##funcname(dst, src1, src2);                                          \
-  }                                                                            \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
-    __vv_##funcname(dst, src1, src2);                                          \
-  }                                                                            \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, stype src1, vtype src2) {    \
-    __vv_##revfuncname(dst, src2, src1);                                       \
-    __vv_lnot(dst, dst);                                                       \
-  }
-
-// for gt, le, funcname is lt, gt, but operand is src2, src1
-#define RELATION_OP_GETVALUE_FOR_GT_LE(funcname, vtype, stype)                 \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
-    __vv_##funcname(dst, src2, src1);                                          \
-  }                                                                            \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
-    simd<stype> tp = src2;                                                     \
-    __vv_##funcname(dst, tp.get_reg(), src1);                                  \
-  }                                                                            \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, stype src1, vtype src2) {    \
-    __vv_##funcname(dst, src2, src1);                                          \
   }
 
 struct __vec_neg {
@@ -1095,53 +1107,7 @@ struct __vec_sr {
   SHIFT_OP(sra, vv_int16, int16_t);
 };
 
-struct __vec_land {
-  COMMUTABLE_BINARY_OP(land, vv_int32, int);
-  COMMUTABLE_BINARY_OP(land, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(land, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(land, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(land, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(land, vv_uint16, uint16_t);
-  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
-                                      vv_bool src2) {
-    __vv_and(dst, src1, src2);
-  }
-};
-
-struct __vec_lor {
-  COMMUTABLE_BINARY_OP(lor, vv_int32, int);
-  COMMUTABLE_BINARY_OP(lor, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(lor, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint16, uint16_t);
-  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
-                                      vv_bool src2) {
-    __vv_or(dst, src1, src2);
-  }
-};
-
-struct __vec_lxor {
-  COMMUTABLE_BINARY_OP(lor, vv_int32, int);
-  COMMUTABLE_BINARY_OP(lor, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(lor, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint16, uint16_t);
-  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
-                                      vv_bool src2) {
-    __vv_xor(dst, src1, src2);
-  }
-};
-
 struct __vec_eq {
-  COMMUTABLE_BINARY_OP(eq, vv_float, float);
-  COMMUTABLE_BINARY_OP(eq, vv_int32, int);
-  COMMUTABLE_BINARY_OP(eq, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(eq, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(eq, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(eq, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(eq, vv_uint16, uint16_t);
   RELATION_OP_SETP(eq, eq, vv_float, float);
   RELATION_OP_SETP(eq, eq, vv_int32, int);
   RELATION_OP_SETP(eq, eq, vv_int8, int8_t);
@@ -1152,13 +1118,6 @@ struct __vec_eq {
 };
 
 struct __vec_ne {
-  COMMUTABLE_BINARY_OP(ne, vv_float, float);
-  COMMUTABLE_BINARY_OP(ne, vv_int32, int);
-  COMMUTABLE_BINARY_OP(ne, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(ne, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(ne, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(ne, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(ne, vv_uint16, uint16_t);
   RELATION_OP_SETP(ne, ne, vv_float, float);
   RELATION_OP_SETP(ne, ne, vv_int32, int);
   RELATION_OP_SETP(ne, ne, vv_int8, int8_t);
@@ -1169,13 +1128,6 @@ struct __vec_ne {
 };
 
 struct __vec_gt {
-  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_float, float);
-  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_int32, int);
-  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_int8, int8_t);
-  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_int16, int16_t);
-  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_uint32, uint32_t);
-  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_uint8, uint8_t);
-  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_uint16, uint16_t);
   RELATION_OP_SETP(gt, lt, vv_float, float);
   RELATION_OP_SETP(gt, lt, vv_int32, int);
   RELATION_OP_SETP(gt, lt, vv_int8, int8_t);
@@ -1186,13 +1138,6 @@ struct __vec_gt {
 };
 
 struct __vec_lt {
-  RELATION_OP_GETVALUE(lt, ge, vv_float, float);
-  RELATION_OP_GETVALUE(lt, ge, vv_int32, int);
-  RELATION_OP_GETVALUE(lt, ge, vv_int8, int8_t);
-  RELATION_OP_GETVALUE(lt, ge, vv_int16, int16_t);
-  RELATION_OP_GETVALUE(lt, ge, vv_uint32, uint32_t);
-  RELATION_OP_GETVALUE(lt, ge, vv_uint8, uint8_t);
-  RELATION_OP_GETVALUE(lt, ge, vv_uint16, uint16_t);
   RELATION_OP_SETP(lt, gt, vv_float, float);
   RELATION_OP_SETP(lt, gt, vv_int32, int);
   RELATION_OP_SETP(lt, gt, vv_int8, int8_t);
@@ -1203,13 +1148,6 @@ struct __vec_lt {
 };
 
 struct __vec_ge {
-  RELATION_OP_GETVALUE(ge, lt, vv_float, float);
-  RELATION_OP_GETVALUE(ge, lt, vv_int32, int);
-  RELATION_OP_GETVALUE(ge, lt, vv_int8, int8_t);
-  RELATION_OP_GETVALUE(ge, lt, vv_int16, int16_t);
-  RELATION_OP_GETVALUE(ge, lt, vv_uint32, uint32_t);
-  RELATION_OP_GETVALUE(ge, lt, vv_uint8, uint8_t);
-  RELATION_OP_GETVALUE(ge, lt, vv_uint16, uint16_t);
   RELATION_OP_SETP(ge, le, vv_float, float);
   RELATION_OP_SETP(ge, le, vv_int32, int);
   RELATION_OP_SETP(ge, le, vv_int8, int8_t);
@@ -1220,13 +1158,6 @@ struct __vec_ge {
 };
 
 struct __vec_le {
-  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_float, float);
-  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_int32, int);
-  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_int8, int8_t);
-  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_int16, int16_t);
-  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_uint32, uint32_t);
-  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_uint8, uint8_t);
-  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_uint16, uint16_t);
   RELATION_OP_SETP(le, ge, vv_float, float);
   RELATION_OP_SETP(le, ge, vv_int32, int);
   RELATION_OP_SETP(le, ge, vv_int8, int8_t);
