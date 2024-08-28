@@ -788,6 +788,22 @@ void __vv_move_m(vv_uint32 &dst, vv_uint32 src, vv_bool mask);
 void __vv_move_m(vv_uint8 &dst, vv_uint8 src, vv_bool mask);
 void __vv_move_m(vv_uint16 &dst, vv_uint16 src, vv_bool mask);
 
+void __vv_move(vv_float &dst, float src);
+void __vv_move(vv_int32 &dst, int src);
+void __vv_move(vv_int8 &dst, int8_t src);
+void __vv_move(vv_int16 &dst, int16_t src);
+void __vv_move(vv_uint32 &dst, uint32_t src);
+void __vv_move(vv_uint8 &dst, uint8_t src);
+void __vv_move(vv_uint16 &dst, uint16_t src);
+
+void __vv_move_m(vv_float &dst, vv_float src, vv_bool mask);
+void __vv_move_m(vv_int32 &dst, vv_int32 src, vv_bool mask);
+void __vv_move_m(vv_int8 &dst, vv_int8 src, vv_bool mask);
+void __vv_move_m(vv_int16 &dst, vv_int16 src, vv_bool mask);
+void __vv_move_m(vv_uint32 &dst, vv_uint32 src, vv_bool mask);
+void __vv_move_m(vv_uint8 &dst, vv_uint8 src, vv_bool mask);
+void __vv_move_m(vv_uint16 &dst, vv_uint16 src, vv_bool mask);
+
 void __vv_sll(vv_int32 &dst, vv_int32 src1, vv_int32 src2);
 void __vv_sll(vv_int32 &dst, vv_int32 src1, int src2);
 void __vv_sll(vv_int8 &dst, vv_int8 src1, vv_int8 src2);

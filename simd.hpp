@@ -133,249 +133,26 @@ template <> struct __VRegTypeT<bool> {
 
 template <typename T> using VRegType = typename __VRegTypeT<T>::type;
 
-#define UNARY_OP(funcname, vtype)                                              \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src) {                 \
-    __vv_##funcname(dst, src);                                                 \
-  }
-
-#define COMMUTABLE_BINARY_OP(funcname, vtype, stype)                           \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
-    __vv_##funcname(dst, src1, src2);                                          \
-  }                                                                            \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
-    __vv_##funcname(dst, src1, src2);                                          \
-  }                                                                            \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, stype src1, vtype src2) {    \
-    __vv_##funcname(dst, src2, src1);                                          \
-  }
-
-#define UNCOMMUTABLE_BINARY_OP(funcname, vtype, stype)                         \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
-    __vv_##funcname(dst, src1, src2);                                          \
-  }                                                                            \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
-    __vv_##funcname(dst, src1, src2);                                          \
-  }                                                                            \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, stype src1, vtype src2) {    \
-    __vv_##funcname(dst, src1, src2);                                          \
-  }
-
-#define SHIFT_OP(funcname, vtype, stype)                                       \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
-    __vv_##funcname(dst, src1, src2);                                          \
-  }                                                                            \
-  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
-    __vv_##funcname(dst, src1, src2);                                          \
-  }
-
-#define RELATION_OP_SETP(funcname, vtype)                                      \
-  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vtype src1, vtype src2) {  \
-    __vv_setp_##funcname(dst, src1, src2);                                     \
-  }
-
-struct __vec_neg {
-  UNARY_OP(neg, vv_float);
-  UNARY_OP(neg, vv_int32);
-  UNARY_OP(neg, vv_int8);
-  UNARY_OP(neg, vv_int16);
-};
-
-struct __vec_add {
-  COMMUTABLE_BINARY_OP(add, vv_float, float);
-  COMMUTABLE_BINARY_OP(add, vv_int32, int);
-  COMMUTABLE_BINARY_OP(add, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(add, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(add, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(add, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(add, vv_uint16, uint16_t);
-};
-
-struct __vec_mul {
-  COMMUTABLE_BINARY_OP(mul, vv_float, float);
-  COMMUTABLE_BINARY_OP(mul, vv_int32, int);
-  COMMUTABLE_BINARY_OP(mul, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(mul, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(mul, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(mul, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(mul, vv_uint16, uint16_t);
-};
-
-struct __vec_sub {
-  UNCOMMUTABLE_BINARY_OP(sub, vv_float, float);
-  UNCOMMUTABLE_BINARY_OP(sub, vv_int32, int);
-  UNCOMMUTABLE_BINARY_OP(sub, vv_int8, int8_t);
-  UNCOMMUTABLE_BINARY_OP(sub, vv_int16, int16_t);
-  UNCOMMUTABLE_BINARY_OP(sub, vv_uint32, uint32_t);
-  UNCOMMUTABLE_BINARY_OP(sub, vv_uint8, uint8_t);
-  UNCOMMUTABLE_BINARY_OP(sub, vv_uint16, uint16_t);
-};
-
-struct __vec_div {
-  UNCOMMUTABLE_BINARY_OP(div, vv_float, float);
-  UNCOMMUTABLE_BINARY_OP(div, vv_int32, int);
-  // UNCOMMUTABLE_BINARY_OP(div, vv_int8, int8_t);
-  UNCOMMUTABLE_BINARY_OP(div, vv_int16, int16_t);
-  UNCOMMUTABLE_BINARY_OP(div, vv_uint32, uint32_t);
-  // UNCOMMUTABLE_BINARY_OP(div, vv_uint8, uint8_t);
-  UNCOMMUTABLE_BINARY_OP(div, vv_uint16, uint16_t);
-};
-
-struct __vec_and {
-  COMMUTABLE_BINARY_OP(and, vv_int32, int);
-  COMMUTABLE_BINARY_OP(and, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(and, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(and, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(and, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(and, vv_uint16, uint16_t);
-};
-
-struct __vec_or {
-  COMMUTABLE_BINARY_OP(or, vv_int32, int);
-  COMMUTABLE_BINARY_OP(or, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(or, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(or, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(or, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(or, vv_uint16, uint16_t);
-};
-
-struct __vec_xor {
-  COMMUTABLE_BINARY_OP(xor, vv_int32, int);
-  COMMUTABLE_BINARY_OP(xor, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(xor, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(xor, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(xor, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(xor, vv_uint16, uint16_t);
-};
-struct __vec_sl {
-  SHIFT_OP(sll, vv_int32, int);
-  SHIFT_OP(sll, vv_int8, int8_t);
-  SHIFT_OP(sll, vv_int16, int16_t);
-  SHIFT_OP(sll, vv_uint32, uint32_t);
-  SHIFT_OP(sll, vv_uint8, uint8_t);
-  SHIFT_OP(sll, vv_uint16, uint16_t);
-};
-
-struct __vec_sr {
-  SHIFT_OP(srl, vv_uint32, uint32_t);
-  SHIFT_OP(srl, vv_uint8, uint8_t);
-  SHIFT_OP(srl, vv_uint16, uint16_t);
-  SHIFT_OP(sra, vv_int32, int);
-  SHIFT_OP(sra, vv_int8, int8_t);
-  SHIFT_OP(sra, vv_int16, int16_t);
-};
-
-struct __vec_land {
-  COMMUTABLE_BINARY_OP(land, vv_int32, int);
-  COMMUTABLE_BINARY_OP(land, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(land, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(land, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(land, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(land, vv_uint16, uint16_t);
-  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
-                                      vv_bool src2) {
-    __vv_and(dst, src1, src2);
-  }
-};
-
-struct __vec_lor {
-  COMMUTABLE_BINARY_OP(lor, vv_int32, int);
-  COMMUTABLE_BINARY_OP(lor, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(lor, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint16, uint16_t);
-  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
-                                      vv_bool src2) {
-    __vv_or(dst, src1, src2);
-  }
-};
-
-struct __vec_lxor {
-  COMMUTABLE_BINARY_OP(lor, vv_int32, int);
-  COMMUTABLE_BINARY_OP(lor, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(lor, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(lor, vv_uint16, uint16_t);
-  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
-                                      vv_bool src2) {
-    __vv_xor(dst, src1, src2);
-  }
-};
-
-struct __vec_eq {
-  COMMUTABLE_BINARY_OP(eq, vv_float, float);
-  COMMUTABLE_BINARY_OP(eq, vv_int32, int);
-  COMMUTABLE_BINARY_OP(eq, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(eq, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(eq, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(eq, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(eq, vv_uint16, uint16_t);
-  RELATION_OP_SETP(eq, vv_float);
-  RELATION_OP_SETP(eq, vv_int32);
-  RELATION_OP_SETP(eq, vv_int8);
-  RELATION_OP_SETP(eq, vv_int16);
-  RELATION_OP_SETP(eq, vv_uint32);
-  RELATION_OP_SETP(eq, vv_uint8);
-  RELATION_OP_SETP(eq, vv_uint16);
-};
-
-struct __vec_ne {
-  COMMUTABLE_BINARY_OP(ne, vv_float, float);
-  COMMUTABLE_BINARY_OP(ne, vv_int32, int);
-  COMMUTABLE_BINARY_OP(ne, vv_int8, int8_t);
-  COMMUTABLE_BINARY_OP(ne, vv_int16, int16_t);
-  COMMUTABLE_BINARY_OP(ne, vv_uint32, uint32_t);
-  COMMUTABLE_BINARY_OP(ne, vv_uint8, uint8_t);
-  COMMUTABLE_BINARY_OP(ne, vv_uint16, uint16_t);
-  RELATION_OP_SETP(ne, vv_float);
-  RELATION_OP_SETP(ne, vv_int32);
-  RELATION_OP_SETP(ne, vv_int8);
-  RELATION_OP_SETP(ne, vv_int16);
-  RELATION_OP_SETP(ne, vv_uint32);
-  RELATION_OP_SETP(ne, vv_uint8);
-  RELATION_OP_SETP(ne, vv_uint16);
-};
-
-struct __vec_gt {
-  RELATION_OP_SETP(gt, vv_float);
-  RELATION_OP_SETP(gt, vv_int32);
-  RELATION_OP_SETP(gt, vv_int8);
-  RELATION_OP_SETP(gt, vv_int16);
-  RELATION_OP_SETP(gt, vv_uint32);
-  RELATION_OP_SETP(gt, vv_uint8);
-  RELATION_OP_SETP(gt, vv_uint16);
-};
-
-struct __vec_lt {
-  RELATION_OP_SETP(lt, vv_float);
-  RELATION_OP_SETP(lt, vv_int32);
-  RELATION_OP_SETP(lt, vv_int8);
-  RELATION_OP_SETP(lt, vv_int16);
-  RELATION_OP_SETP(lt, vv_uint32);
-  RELATION_OP_SETP(lt, vv_uint8);
-  RELATION_OP_SETP(lt, vv_uint16);
-};
-
-struct __vec_ge {
-  RELATION_OP_SETP(ge, vv_float);
-  RELATION_OP_SETP(ge, vv_int32);
-  RELATION_OP_SETP(ge, vv_int8);
-  RELATION_OP_SETP(ge, vv_int16);
-  RELATION_OP_SETP(ge, vv_uint32);
-  RELATION_OP_SETP(ge, vv_uint8);
-  RELATION_OP_SETP(ge, vv_uint16);
-};
-
-struct __vec_le {
-  RELATION_OP_SETP(le, vv_float);
-  RELATION_OP_SETP(le, vv_int32);
-  RELATION_OP_SETP(le, vv_int8);
-  RELATION_OP_SETP(le, vv_int16);
-  RELATION_OP_SETP(le, vv_uint32);
-  RELATION_OP_SETP(le, vv_uint8);
-  RELATION_OP_SETP(le, vv_uint16);
-};
+struct __vec_neg;
+struct __vec_add;
+struct __vec_mul;
+struct __vec_sub;
+struct __vec_div;
+struct __vec_rem;
+struct __vec_and;
+struct __vec_or;
+struct __vec_xor;
+struct __vec_sl;
+struct __vec_sr;
+struct __vec_land;
+struct __vec_lor;
+struct __vec_lxor;
+struct __vec_eq;
+struct __vec_ne;
+struct __vec_gt;
+struct __vec_lt;
+struct __vec_ge;
+struct __vec_le;
 
 enum class TypeTag {
   Integral,
@@ -515,11 +292,11 @@ struct Expr<UnClosure<Oper, T, _Simd, _Null, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
     Oper()(dst.get_reg(), closure.operand.get_reg());
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
     Oper()(dst.get_reg(), closure.operand.get_reg());
   }
 };
@@ -531,14 +308,14 @@ struct Expr<UnClosure<Oper, T, _Expr, Dom, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
-    simd<T> tmp;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
+    simd<RT> tmp;
     closure.expr.eval(tmp);
     Oper()(dst.get_reg(), tmp.get_reg());
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
-    simd<T> tmp;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
+    simd<RT> tmp;
     closure.expr.eval(tmp);
     Oper()(dst.get_reg(), tmp.get_reg());
   }
@@ -551,12 +328,12 @@ struct Expr<BinClosure<Oper, T, _Simd, _Simd, _Null, _Null, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
     Oper()(dst.get_reg(), closure.left_operand.get_reg(),
            closure.right_operand.get_reg());
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
     Oper()(dst.get_reg(), closure.left_operand.get_reg(),
            closure.right_operand.get_reg());
   }
@@ -569,14 +346,14 @@ struct Expr<BinClosure<Oper, T, _Expr, _Simd, Dom, _Null, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
-    simd<T> tmp_left;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
+    simd<RT> tmp_left;
     closure.left_expr.eval(tmp_left);
     Oper()(dst.get_reg(), tmp_left.get_reg(), closure.right_operand.get_reg());
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
-    simd<T> tmp_left;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
+    simd<RT> tmp_left;
     closure.left_expr.eval(tmp_left);
     Oper()(dst.get_reg(), tmp_left.get_reg(), closure.right_operand.get_reg());
   }
@@ -589,14 +366,14 @@ struct Expr<BinClosure<Oper, T, _Simd, _Expr, _Null, Dom, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
-    simd<T> tmp_right;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
+    simd<RT> tmp_right;
     closure.right_expr.eval(tmp_right);
     Oper()(dst.get_reg(), closure.left_operand.get_reg(), tmp_right.get_reg());
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
-    simd<T> tmp_right;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
+    simd<RT> tmp_right;
     closure.right_expr.eval(tmp_right);
     Oper()(dst.get_reg(), closure.left_operand.get_reg(), tmp_right.get_reg());
   }
@@ -609,15 +386,15 @@ struct Expr<BinClosure<Oper, T, _Expr, _Expr, DomLeft, DomRight, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
-    simd<T> tmp_right;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
+    simd<RT> tmp_right;
     closure.left_expr.eval(dst);
     closure.right_expr.eval(tmp_right);
     Oper()(dst.get_reg(), dst.get_reg(), tmp_right.get_reg());
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
-    simd<T> tmp_right;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
+    simd<RT> tmp_right;
     closure.left_expr.eval(dst);
     closure.right_expr.eval(tmp_right);
     Oper()(dst.get_reg(), dst.get_reg(), tmp_right.get_reg(), mask);
@@ -631,12 +408,12 @@ struct Expr<BinClosure<Oper, T, _Simd, _Scalar, _Null, _Null, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
     Oper()(dst.get_reg(), closure.left_operand.get_reg(),
            closure.right_operand);
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
     Oper()(dst.get_reg(), closure.left_operand.get_reg(), closure.right_operand,
            mask);
   }
@@ -649,14 +426,14 @@ struct Expr<BinClosure<Oper, T, _Expr, _Scalar, Dom, _Null, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
-    simd<T> tmp;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
+    simd<RT> tmp;
     closure.left_expr.eval(tmp);
     Oper()(dst.get_reg(), tmp.get_reg(), closure.right_operand);
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
-    simd<T> tmp;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
+    simd<RT> tmp;
     closure.left_expr.eval(tmp);
     Oper()(dst.get_reg(), tmp.get_reg(), closure.right_operand, mask);
   }
@@ -669,12 +446,12 @@ struct Expr<BinClosure<Oper, T, _Scalar, _Simd, _Null, _Null, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
     Oper()(dst.get_reg(), closure.left_operand,
            closure.right_operand.get_reg());
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
     Oper()(dst.get_reg(), closure.left_operand, closure.right_operand.get_reg(),
            mask);
   }
@@ -687,14 +464,14 @@ struct Expr<BinClosure<Oper, T, _Scalar, _Expr, _Null, Dom, RT>, RT> {
 
   LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst) {
-    simd<T> tmp;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
+    simd<RT> tmp;
     closure.right_expr.eval(tmp);
     Oper()(dst.get_reg(), closure.left_operand, tmp.get_reg());
   }
 
-  LIBDEVICE_ATTRIBUTE void eval(simd<T> &dst, simd<bool> &mask) {
-    simd<T> tmp;
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
+    simd<RT> tmp;
     closure.right_expr.eval(tmp);
     Oper()(dst.get_reg(), closure.left_operand, tmp.get_reg());
   }
@@ -1072,6 +849,389 @@ BINARY_OPERATIRON_DEFINE(<<, __vec_sr);
  * Comparison Operations: ==, !=, <, >, <=, >=
  ***********************************************************/
 
-/***********************************************************
- * Bitwise Shift Operations: <<, >>
- *************************************************************/
+#define RELATION_OPERATIRON_DEFINE(sym, relation_fun)                          \
+  template <typename T>                                                        \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<relation_fun, T, _Simd, _Simd, _Null, _Null, bool>,      \
+           bool> operator sym(simd<T> &lhs, simd<T> &rhs) {                    \
+    using ClosureType =                                                        \
+        BinClosure<relation_fun, T, _Simd, _Simd, _Null, _Null, bool>;         \
+    using ExprType = Expr<ClosureType, bool>;                                  \
+    return ExprType(ClosureType(lhs, rhs));                                    \
+  }                                                                            \
+  template <typename T, typename ScalarT>                                      \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<relation_fun, T, _Simd, _Scalar, _Null, _Null, bool>,    \
+           bool> operator sym(simd<T> &lhs, ScalarT && rhs) {                  \
+    using ClosureType =                                                        \
+        BinClosure<relation_fun, T, _Simd, _Scalar, _Null, _Null, bool>;       \
+    using ExprType = Expr<ClosureType, bool>;                                  \
+    return ExprType(ClosureType(lhs, static_cast<T>(rhs)));                    \
+  }                                                                            \
+  template <typename T, typename ScalarT>                                      \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<relation_fun, T, _Scalar, _Simd, _Null, _Null, bool>,    \
+           bool> operator sym(ScalarT && lhs, simd<T> &rhs) {                  \
+    using ClosureType =                                                        \
+        BinClosure<relation_fun, T, _Scalar, _Simd, _Null, _Null, bool>;       \
+    using ExprType = Expr<ClosureType, bool>;                                  \
+    return ExprType(ClosureType(static_cast<T>(lhs), rhs));                    \
+  }                                                                            \
+  template <typename T, class Dom, typename ScalarT>                           \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<relation_fun, T, _Expr, _Scalar, Dom, _Null, bool>,      \
+           bool> operator sym(Expr<Dom, T> lhs, ScalarT rhs) {                 \
+    using ClosureType =                                                        \
+        BinClosure<relation_fun, T, _Expr, _Scalar, Dom, _Null, bool>;         \
+    using ExprType = Expr<ClosureType, bool>;                                  \
+    return ExprType(ClosureType(lhs, static_cast<T>(rhs)));                    \
+  }                                                                            \
+  template <typename T, class Dom>                                             \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<relation_fun, T, _Expr, _Simd, Dom, _Null, bool>, bool>  \
+      operator sym(Expr<Dom, T> lhs, simd<T> &rhs) {                           \
+    using ClosureType =                                                        \
+        BinClosure<relation_fun, T, _Expr, _Simd, Dom, _Null, bool>;           \
+    using ExprType = Expr<ClosureType, bool>;                                  \
+    return ExprType(ClosureType(lhs, rhs));                                    \
+  }                                                                            \
+  template <typename T, class Dom, typename ScalarT>                           \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<relation_fun, T, _Scalar, _Expr, _Null, Dom, bool>,      \
+           bool> operator sym(ScalarT lhs, Expr<Dom, T> rhs) {                 \
+    using ClosureType =                                                        \
+        BinClosure<relation_fun, T, _Scalar, _Expr, _Null, Dom, bool>;         \
+    using ExprType = Expr<ClosureType, T>;                                     \
+    return ExprType(ClosureType(static_cast<T>(lhs), rhs));                    \
+  }                                                                            \
+  template <typename T, class Dom>                                             \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<relation_fun, T, _Simd, _Expr, _Null, Dom, bool>, bool>  \
+      operator sym(simd<T> &lhs, Expr<Dom, T> rhs) {                           \
+    using ClosureType =                                                        \
+        BinClosure<relation_fun, T, _Simd, _Expr, _Null, Dom, bool>;           \
+    using ExprType = Expr<ClosureType, bool>;                                  \
+    return ExprType(ClosureType(lhs, rhs));                                    \
+  }                                                                            \
+  template <typename T, class DomLeft, class DomRight>                         \
+  LIBDEVICE_ATTRIBUTE                                                          \
+      Expr<BinClosure<relation_fun, T, _Expr, _Expr, DomLeft, DomRight, bool>, \
+           bool> operator sym(Expr<DomLeft, T> lhs, Expr<DomRight, T> rhs) {   \
+    using ClosureType =                                                        \
+        BinClosure<relation_fun, T, _Expr, _Expr, DomLeft, DomRight, bool>;    \
+    using ExprType = Expr<ClosureType, bool>;                                  \
+    return ExprType(ClosureType(lhs, rhs));                                    \
+  }
+
+RELATION_OPERATIRON_DEFINE(==, __vec_eq);
+RELATION_OPERATIRON_DEFINE(!=, __vec_ne);
+RELATION_OPERATIRON_DEFINE(>, __vec_gt);
+RELATION_OPERATIRON_DEFINE(<, __vec_lt);
+RELATION_OPERATIRON_DEFINE(>=, __vec_ge);
+RELATION_OPERATIRON_DEFINE(<=, __vec_le);
+
+//
+
+#define UNARY_OP(funcname, vtype)                                              \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src) {                 \
+    __vv_##funcname(dst, src);                                                 \
+  }
+
+#define COMMUTABLE_BINARY_OP(funcname, vtype, stype)                           \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, stype src1, vtype src2) {    \
+    __vv_##funcname(dst, src2, src1);                                          \
+  }
+
+#define UNCOMMUTABLE_BINARY_OP(funcname, vtype, stype)                         \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, stype src1, vtype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }
+
+#define SHIFT_OP(funcname, vtype, stype)                                       \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }
+
+#define RELATION_OP_SETP(funcname, revfuncname, vtype, stype)                  \
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vtype src1, vtype src2) {  \
+    __vv_setp_##funcname(dst, src1, src2);                                     \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vtype src1, stype src2) {  \
+    __vv_setp_##funcname(dst, src1, src2);                                     \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, stype src1, vtype src2) {  \
+    __vv_setp_##revfuncname(dst, src2, src1);                                  \
+  }
+
+// lt, ge, rev is ge, lt
+#define RELATION_OP_GETVALUE(funcname, revfuncname, vtype, stype)              \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
+    __vv_##funcname(dst, src1, src2);                                          \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, stype src1, vtype src2) {    \
+    __vv_##revfuncname(dst, src2, src1);                                       \
+    __vv_lnot(dst, dst);                                                       \
+  }
+
+// for gt, le, funcname is lt, gt, but operand is src2, src1
+#define RELATION_OP_GETVALUE_FOR_GT_LE(funcname, vtype, stype)                 \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
+    __vv_##funcname(dst, src2, src1);                                          \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, stype src2) {    \
+    simd<stype> tp = src2;                                                     \
+    __vv_##funcname(dst, tp.get_reg(), src1);                                  \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, stype src1, vtype src2) {    \
+    __vv_##funcname(dst, src2, src1);                                          \
+  }
+
+struct __vec_neg {
+  UNARY_OP(neg, vv_float);
+  UNARY_OP(neg, vv_int32);
+  UNARY_OP(neg, vv_int8);
+  UNARY_OP(neg, vv_int16);
+};
+
+struct __vec_add {
+  COMMUTABLE_BINARY_OP(add, vv_float, float);
+  COMMUTABLE_BINARY_OP(add, vv_int32, int);
+  COMMUTABLE_BINARY_OP(add, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(add, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(add, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(add, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(add, vv_uint16, uint16_t);
+};
+
+struct __vec_mul {
+  COMMUTABLE_BINARY_OP(mul, vv_float, float);
+  COMMUTABLE_BINARY_OP(mul, vv_int32, int);
+  COMMUTABLE_BINARY_OP(mul, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(mul, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(mul, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(mul, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(mul, vv_uint16, uint16_t);
+};
+
+struct __vec_sub {
+  UNCOMMUTABLE_BINARY_OP(sub, vv_float, float);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_int32, int);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_int8, int8_t);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_int16, int16_t);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_uint32, uint32_t);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_uint8, uint8_t);
+  UNCOMMUTABLE_BINARY_OP(sub, vv_uint16, uint16_t);
+};
+
+struct __vec_div {
+  UNCOMMUTABLE_BINARY_OP(div, vv_float, float);
+  UNCOMMUTABLE_BINARY_OP(div, vv_int32, int);
+  // UNCOMMUTABLE_BINARY_OP(div, vv_int8, int8_t);
+  UNCOMMUTABLE_BINARY_OP(div, vv_int16, int16_t);
+  UNCOMMUTABLE_BINARY_OP(div, vv_uint32, uint32_t);
+  // UNCOMMUTABLE_BINARY_OP(div, vv_uint8, uint8_t);
+  UNCOMMUTABLE_BINARY_OP(div, vv_uint16, uint16_t);
+};
+
+struct __vec_and {
+  COMMUTABLE_BINARY_OP(and, vv_int32, int);
+  COMMUTABLE_BINARY_OP(and, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(and, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(and, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(and, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(and, vv_uint16, uint16_t);
+};
+
+struct __vec_or {
+  COMMUTABLE_BINARY_OP(or, vv_int32, int);
+  COMMUTABLE_BINARY_OP(or, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(or, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(or, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(or, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(or, vv_uint16, uint16_t);
+};
+
+struct __vec_xor {
+  COMMUTABLE_BINARY_OP(xor, vv_int32, int);
+  COMMUTABLE_BINARY_OP(xor, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(xor, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(xor, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(xor, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(xor, vv_uint16, uint16_t);
+};
+struct __vec_sl {
+  SHIFT_OP(sll, vv_int32, int);
+  SHIFT_OP(sll, vv_int8, int8_t);
+  SHIFT_OP(sll, vv_int16, int16_t);
+  SHIFT_OP(sll, vv_uint32, uint32_t);
+  SHIFT_OP(sll, vv_uint8, uint8_t);
+  SHIFT_OP(sll, vv_uint16, uint16_t);
+};
+
+struct __vec_sr {
+  SHIFT_OP(srl, vv_uint32, uint32_t);
+  SHIFT_OP(srl, vv_uint8, uint8_t);
+  SHIFT_OP(srl, vv_uint16, uint16_t);
+  SHIFT_OP(sra, vv_int32, int);
+  SHIFT_OP(sra, vv_int8, int8_t);
+  SHIFT_OP(sra, vv_int16, int16_t);
+};
+
+struct __vec_land {
+  COMMUTABLE_BINARY_OP(land, vv_int32, int);
+  COMMUTABLE_BINARY_OP(land, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(land, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(land, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(land, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(land, vv_uint16, uint16_t);
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
+                                      vv_bool src2) {
+    __vv_and(dst, src1, src2);
+  }
+};
+
+struct __vec_lor {
+  COMMUTABLE_BINARY_OP(lor, vv_int32, int);
+  COMMUTABLE_BINARY_OP(lor, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(lor, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint16, uint16_t);
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
+                                      vv_bool src2) {
+    __vv_or(dst, src1, src2);
+  }
+};
+
+struct __vec_lxor {
+  COMMUTABLE_BINARY_OP(lor, vv_int32, int);
+  COMMUTABLE_BINARY_OP(lor, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(lor, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(lor, vv_uint16, uint16_t);
+  LIBDEVICE_ATTRIBUTE void operator()(vv_bool &dst, vv_bool src1,
+                                      vv_bool src2) {
+    __vv_xor(dst, src1, src2);
+  }
+};
+
+struct __vec_eq {
+  COMMUTABLE_BINARY_OP(eq, vv_float, float);
+  COMMUTABLE_BINARY_OP(eq, vv_int32, int);
+  COMMUTABLE_BINARY_OP(eq, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(eq, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(eq, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(eq, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(eq, vv_uint16, uint16_t);
+  RELATION_OP_SETP(eq, eq, vv_float, float);
+  RELATION_OP_SETP(eq, eq, vv_int32, int);
+  RELATION_OP_SETP(eq, eq, vv_int8, int8_t);
+  RELATION_OP_SETP(eq, eq, vv_int16, int16_t);
+  RELATION_OP_SETP(eq, eq, vv_uint32, uint32_t);
+  RELATION_OP_SETP(eq, eq, vv_uint8, uint8_t);
+  RELATION_OP_SETP(eq, eq, vv_uint16, uint16_t);
+};
+
+struct __vec_ne {
+  COMMUTABLE_BINARY_OP(ne, vv_float, float);
+  COMMUTABLE_BINARY_OP(ne, vv_int32, int);
+  COMMUTABLE_BINARY_OP(ne, vv_int8, int8_t);
+  COMMUTABLE_BINARY_OP(ne, vv_int16, int16_t);
+  COMMUTABLE_BINARY_OP(ne, vv_uint32, uint32_t);
+  COMMUTABLE_BINARY_OP(ne, vv_uint8, uint8_t);
+  COMMUTABLE_BINARY_OP(ne, vv_uint16, uint16_t);
+  RELATION_OP_SETP(ne, ne, vv_float, float);
+  RELATION_OP_SETP(ne, ne, vv_int32, int);
+  RELATION_OP_SETP(ne, ne, vv_int8, int8_t);
+  RELATION_OP_SETP(ne, ne, vv_int16, int16_t);
+  RELATION_OP_SETP(ne, ne, vv_uint32, uint32_t);
+  RELATION_OP_SETP(ne, ne, vv_uint8, uint8_t);
+  RELATION_OP_SETP(ne, ne, vv_uint16, uint16_t);
+};
+
+struct __vec_gt {
+  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_float, float);
+  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_int32, int);
+  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_int8, int8_t);
+  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_int16, int16_t);
+  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_uint32, uint32_t);
+  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_uint8, uint8_t);
+  RELATION_OP_GETVALUE_FOR_GT_LE(lt, vv_uint16, uint16_t);
+  RELATION_OP_SETP(gt, lt, vv_float, float);
+  RELATION_OP_SETP(gt, lt, vv_int32, int);
+  RELATION_OP_SETP(gt, lt, vv_int8, int8_t);
+  RELATION_OP_SETP(gt, lt, vv_int16, int16_t);
+  RELATION_OP_SETP(gt, lt, vv_uint32, uint32_t);
+  RELATION_OP_SETP(gt, lt, vv_uint8, uint8_t);
+  RELATION_OP_SETP(gt, lt, vv_uint16, uint16_t);
+};
+
+struct __vec_lt {
+  RELATION_OP_GETVALUE(lt, ge, vv_float, float);
+  RELATION_OP_GETVALUE(lt, ge, vv_int32, int);
+  RELATION_OP_GETVALUE(lt, ge, vv_int8, int8_t);
+  RELATION_OP_GETVALUE(lt, ge, vv_int16, int16_t);
+  RELATION_OP_GETVALUE(lt, ge, vv_uint32, uint32_t);
+  RELATION_OP_GETVALUE(lt, ge, vv_uint8, uint8_t);
+  RELATION_OP_GETVALUE(lt, ge, vv_uint16, uint16_t);
+  RELATION_OP_SETP(lt, gt, vv_float, float);
+  RELATION_OP_SETP(lt, gt, vv_int32, int);
+  RELATION_OP_SETP(lt, gt, vv_int8, int8_t);
+  RELATION_OP_SETP(lt, gt, vv_int16, int16_t);
+  RELATION_OP_SETP(lt, gt, vv_uint32, uint32_t);
+  RELATION_OP_SETP(lt, gt, vv_uint8, uint8_t);
+  RELATION_OP_SETP(lt, gt, vv_uint16, uint16_t);
+};
+
+struct __vec_ge {
+  RELATION_OP_GETVALUE(ge, lt, vv_float, float);
+  RELATION_OP_GETVALUE(ge, lt, vv_int32, int);
+  RELATION_OP_GETVALUE(ge, lt, vv_int8, int8_t);
+  RELATION_OP_GETVALUE(ge, lt, vv_int16, int16_t);
+  RELATION_OP_GETVALUE(ge, lt, vv_uint32, uint32_t);
+  RELATION_OP_GETVALUE(ge, lt, vv_uint8, uint8_t);
+  RELATION_OP_GETVALUE(ge, lt, vv_uint16, uint16_t);
+  RELATION_OP_SETP(ge, le, vv_float, float);
+  RELATION_OP_SETP(ge, le, vv_int32, int);
+  RELATION_OP_SETP(ge, le, vv_int8, int8_t);
+  RELATION_OP_SETP(ge, le, vv_int16, int16_t);
+  RELATION_OP_SETP(ge, le, vv_uint32, uint32_t);
+  RELATION_OP_SETP(ge, le, vv_uint8, uint8_t);
+  RELATION_OP_SETP(ge, le, vv_uint16, uint16_t);
+};
+
+struct __vec_le {
+  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_float, float);
+  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_int32, int);
+  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_int8, int8_t);
+  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_int16, int16_t);
+  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_uint32, uint32_t);
+  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_uint8, uint8_t);
+  RELATION_OP_GETVALUE_FOR_GT_LE(ge, vv_uint16, uint16_t);
+  RELATION_OP_SETP(le, ge, vv_float, float);
+  RELATION_OP_SETP(le, ge, vv_int32, int);
+  RELATION_OP_SETP(le, ge, vv_int8, int8_t);
+  RELATION_OP_SETP(le, ge, vv_int16, int16_t);
+  RELATION_OP_SETP(le, ge, vv_uint32, uint32_t);
+  RELATION_OP_SETP(le, ge, vv_uint8, uint8_t);
+  RELATION_OP_SETP(le, ge, vv_uint16, uint16_t);
+};
