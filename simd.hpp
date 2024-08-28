@@ -110,7 +110,16 @@ template <> struct TypeTraits<bool> {
 
 template <typename T, TypeTag tag> struct __simd;
 
+template <typename T, TypeTag tag> struct __simd_with_mask;
+template <typename T, TypeTag tag> struct __simd_with_zeromask;
+
 template <typename T> using simd = __simd<T, TypeTraits<T>::tag>;
+
+template <typename T>
+using simd_with_mask = __simd_with_mask<T, TypeTraits<T>::tag>;
+
+template <typename T>
+using simd_with_zeromask = __simd_with_zeromask<T, TypeTraits<T>::tag>;
 
 template <class Oper, typename T, typename RT>
 struct UnClosure<Oper, T, _Simd, _Null, RT> {
@@ -127,8 +136,8 @@ struct UnClosure<Oper, T, _Expr, Dom, RT> {
   LIBDEVICE_ATTRIBUTE UnClosure(Expr<Dom, RT> expr) : expr(expr) {}
 };
 
-template <class Oper, typename T>
-struct BinClosure<Oper, T, _Simd, _Simd, _Null, _Null, T> {
+template <class Oper, typename T, typename RT>
+struct BinClosure<Oper, T, _Simd, _Simd, _Null, _Null, RT> {
   simd<T> &left_operand;
   simd<T> &right_operand;
 
@@ -505,16 +514,13 @@ struct CommonOperation {
   /***********************************************************
    * operator++
    ***********************************************************/
-  LIBDEVICE_ATTRIBUTE SimdType &operator++() {
+  LIBDEVICE_ATTRIBUTE void operator++() {
     __vv_add(static_cast<SimdType &>(*this).get_reg(),
              static_cast<SimdType &>(*this).get_reg(), (T)1);
-    return static_cast<SimdType &>(*this);
   }
-  LIBDEVICE_ATTRIBUTE SimdType operator++(int) {
-    SimdType tmp(static_cast<SimdType &>(*this));
+  LIBDEVICE_ATTRIBUTE void operator++(int) {
     __vv_add(static_cast<SimdType &>(*this).get_reg(),
              static_cast<SimdType &>(*this).get_reg(), (T)1);
-    return tmp;
   }
   /***********************************************************
    * operator--
@@ -524,11 +530,10 @@ struct CommonOperation {
              static_cast<SimdType &>(*this).get_reg(), (T)1);
     return static_cast<SimdType &>(*this);
   }
-  LIBDEVICE_ATTRIBUTE SimdType operator--(int) {
-    SimdType tmp(static_cast<SimdType &>(*this));
+  LIBDEVICE_ATTRIBUTE SimdType &operator--(int) {
     __vv_sub(static_cast<SimdType &>(*this).get_reg(),
              static_cast<SimdType &>(*this).get_reg(), (T)1);
-    return tmp;
+    return static_cast<SimdType &>(*this);
   }
 
   // load, store
@@ -727,7 +732,67 @@ template <typename T> struct __simd<T, TypeTag::Predicate> {
     using ExprType = Expr<ClosureType, bool>;
     return ExprType(ClosureType(static_cast<__simd &>(*this)));
   }
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE __simd(Expr<Closure, bool> &&expr) {
+    expr.eval(*this);
+  }
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE __simd &operator=(Expr<Closure, bool> &&expr) {
+    expr.eval(*this);
+  }
 };
+
+template <typename T> struct __simd_with_mask<T, TypeTag::Integral> {
+  VRegType<T> reg;
+  vv_bool mask;
+
+  LIBDEVICE_ATTRIBUTE __simd_with_mask() = delete;
+
+  LIBDEVICE_ATTRIBUTE __simd_with_mask(simd<bool> &pred, simd<T> &dst)
+      : reg(dst.reg), mask(pred.reg) {}
+
+  LIBDEVICE_ATTRIBUTE VRegType<T> &get_reg() { return reg; }
+
+  LIBDEVICE_ATTRIBUTE VRegType<bool> &get_mask() { return mask; }
+
+  LIBDEVICE_ATTRIBUTE
+  __simd_with_mask(simd<T> &other) { __vv_move_m(reg, other.reg, mask); }
+};
+
+template <typename T> struct __simd_with_zeromask<T, TypeTag::Integral> {
+  VRegType<T> &reg;
+  vv_bool &mask;
+
+  LIBDEVICE_ATTRIBUTE __simd_with_zeromask() = delete;
+
+  LIBDEVICE_ATTRIBUTE __simd_with_zeromask(simd<bool> &pred, simd<T> &dst)
+      : reg(dst.reg), mask(pred.reg) {}
+
+  LIBDEVICE_ATTRIBUTE VRegType<T> &get_reg() { return reg; }
+
+  LIBDEVICE_ATTRIBUTE VRegType<bool> &get_mask() { return mask; }
+};
+
+// ----------------------------
+template <typename T>
+LIBDEVICE_ATTRIBUTE simd_with_mask<T> where(const simd<bool> &pred,
+                                            simd<T> &dst) {
+  return simd_with_mask<T>(pred, dst);
+}
+
+template <typename T>
+LIBDEVICE_ATTRIBUTE simd_with_mask<T> whereM(const simd<bool> &pred,
+                                             simd<T> &dst) {
+  return simd_with_mask<T>(pred, dst);
+}
+
+template <typename T>
+LIBDEVICE_ATTRIBUTE simd_with_zeromask<T> whereZ(const simd<bool> &pred,
+                                                 simd<T> &dst) {
+  return simd_with_zeromask<T>(pred, dst);
+}
 
 /***********************************************************
  * Operations
@@ -1056,7 +1121,7 @@ operator!(Expr<Dom, bool> operand) {
     __vv_##funcname(dst, src1, src2);                                          \
   }
 
-#define SHIFT_OP(funcname, vtype, stype)                                       \
+#define NO_SCALAR_LEFT_OP(funcname, vtype, stype)                              \
   LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src1, vtype src2) {    \
     __vv_##funcname(dst, src1, src2);                                          \
   }                                                                            \
@@ -1080,6 +1145,16 @@ struct __vec_neg {
   UNARY_OP(neg, vv_int32);
   UNARY_OP(neg, vv_int8);
   UNARY_OP(neg, vv_int16);
+};
+
+struct __vec_not {
+  UNARY_OP(not, vv_int32);
+  UNARY_OP(not, vv_int8);
+  UNARY_OP(not, vv_int16);
+  UNARY_OP(not, vv_uint32);
+  UNARY_OP(not, vv_uint8);
+  UNARY_OP(not, vv_uint16);
+  // UNARY_OP(not, vv_bool);
 };
 
 struct __vec_add {
@@ -1149,21 +1224,21 @@ struct __vec_xor {
   COMMUTABLE_BINARY_OP(xor, vv_uint16, uint16_t);
 };
 struct __vec_sl {
-  SHIFT_OP(sll, vv_int32, int);
-  SHIFT_OP(sll, vv_int8, int8_t);
-  SHIFT_OP(sll, vv_int16, int16_t);
-  SHIFT_OP(sll, vv_uint32, uint32_t);
-  SHIFT_OP(sll, vv_uint8, uint8_t);
-  SHIFT_OP(sll, vv_uint16, uint16_t);
+  NO_SCALAR_LEFT_OP(sll, vv_int32, int);
+  NO_SCALAR_LEFT_OP(sll, vv_int8, int8_t);
+  NO_SCALAR_LEFT_OP(sll, vv_int16, int16_t);
+  NO_SCALAR_LEFT_OP(sll, vv_uint32, uint32_t);
+  NO_SCALAR_LEFT_OP(sll, vv_uint8, uint8_t);
+  NO_SCALAR_LEFT_OP(sll, vv_uint16, uint16_t);
 };
 
 struct __vec_sr {
-  SHIFT_OP(srl, vv_uint32, uint32_t);
-  SHIFT_OP(srl, vv_uint8, uint8_t);
-  SHIFT_OP(srl, vv_uint16, uint16_t);
-  SHIFT_OP(sra, vv_int32, int);
-  SHIFT_OP(sra, vv_int8, int8_t);
-  SHIFT_OP(sra, vv_int16, int16_t);
+  NO_SCALAR_LEFT_OP(srl, vv_uint32, uint32_t);
+  NO_SCALAR_LEFT_OP(srl, vv_uint8, uint8_t);
+  NO_SCALAR_LEFT_OP(srl, vv_uint16, uint16_t);
+  NO_SCALAR_LEFT_OP(sra, vv_int32, int);
+  NO_SCALAR_LEFT_OP(sra, vv_int8, int8_t);
+  NO_SCALAR_LEFT_OP(sra, vv_int16, int16_t);
 };
 
 struct __vec_eq {
