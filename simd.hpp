@@ -8,6 +8,68 @@
 #include <cstdint>
 #include <utility>
 
+template <typename... Args> struct Tuple;
+
+template <typename Head, typename... Tail> struct Tuple<Head, Tail...> {
+  Head head;
+  Tuple<Tail...> tails;
+
+  LIBDEVICE_ATTRIBUTE Tuple(Head &&h, Tail &&...t)
+      : head(std::forward<Head>(h)), tails(std::forward<Tail>(t)...) {}
+};
+
+template <> struct Tuple<> {
+  LIBDEVICE_ATTRIBUTE Tuple() {}
+};
+
+template <std::size_t N> struct GetTupleElement {
+  template <typename Head, typename... Tail>
+  LIBDEVICE_ATTRIBUTE static auto &get(Tuple<Head, Tail...> &t) {
+    return GetTupleElement<N - 1>::get(t.tails);
+  }
+};
+
+template <> struct GetTupleElement<0> {
+  template <typename Head, typename... Tail>
+  LIBDEVICE_ATTRIBUTE static auto &get(Tuple<Head, Tail...> &t) {
+    return t.head;
+  }
+};
+
+template <std::size_t N, typename... Args>
+LIBDEVICE_ATTRIBUTE auto &get(Tuple<Args...> &t) {
+  return GetTupleElement<N>::get(t);
+}
+
+// Tuple Size
+template <typename Tuple> struct TupleSizeV;
+
+template <typename... Args> struct TupleSizeV<Tuple<Args...>> {
+  static constexpr std::size_t value = sizeof...(Args);
+};
+
+template <typename TypeList> struct FrontT;
+template <typename TypeList> struct PopFrontT;
+template <typename NewType, typename TypeList> struct PushFrontT;
+template <typename Head, typename... Tail> struct FrontT<Tuple<Head, Tail...>> {
+  using type = Head;
+};
+template <typename TypeList> using Front = typename FrontT<TypeList>::type;
+template <typename Head, typename... Tail>
+struct PopFrontT<Tuple<Head, Tail...>> {
+  using type = Tuple<Tail...>;
+};
+template <typename TypeList>
+using PopFront = typename PopFrontT<TypeList>::type;
+
+template <typename NewType, typename... Types>
+struct PushFrontT<NewType, Tuple<Types...>> {
+  using type = Tuple<NewType, Types...>;
+};
+
+template <typename NewType, typename TypeList>
+using PushFront = typename PushFrontT<NewType, TypeList>::type;
+
 // ------------------------------------------------------------
 
 class _Simd;
@@ -21,6 +83,9 @@ struct UnClosure;
 template <class Oper, typename T, class MetaLeft, class MetaRight,
           class DomLeft, class DomRight, class RT>
 struct BinClosure;
+
+// FuncArg can be Simd, Scalar, Expr
+template <class Oper, typename RT, class... FuncArgs> struct FuncClosure;
 
 template <class Closure, typename RT> struct Expr;
 
@@ -121,6 +186,13 @@ using simd_with_mask = __simd_with_mask<T, TypeTraits<T>::tag>;
 template <typename T>
 using simd_with_zeromask = __simd_with_zeromask<T, TypeTraits<T>::tag>;
 
+/***********************************************************
+ * Closure
+ ***********************************************************/
+
+/***********************************************************
+ * UnClosure
+ ***********************************************************/
 template <class Oper, typename T, typename RT>
 struct UnClosure<Oper, T, _Simd, _Null, RT> {
   simd<T> &operand;
@@ -135,6 +207,10 @@ struct UnClosure<Oper, T, _Expr, Dom, RT> {
 
   LIBDEVICE_ATTRIBUTE UnClosure(Expr<Dom, RT> expr) : expr(expr) {}
 };
+
+/***********************************************************
+ * BinClosure
+ ***********************************************************/
 
 template <class Oper, typename T, typename RT>
 struct BinClosure<Oper, T, _Simd, _Simd, _Null, _Null, RT> {
@@ -211,10 +287,20 @@ struct BinClosure<Oper, T, _Expr, _Expr, DomLeft, DomRight, RT> {
       : left_expr(expr1), right_expr(expr2) {}
 };
 
-template <typename T, typename... Others> struct GetFirstT {
-  using type = T;
+/***********************************************************
+ * FuncClosure
+ ***********************************************************/
+
+template <class Oper, typename RT, class... FuncArgs> struct FuncClosure {
+  Tuple<FuncArgs...> args;
+
+  LIBDEVICE_ATTRIBUTE FuncClosure(FuncArgs &&...args)
+      : args(std::forward<FuncArgs>(args)...) {}
 };
 
+/***********************************************************
+ * Expr
+ ***********************************************************/
 template <class Oper, typename T, typename RT>
 struct Expr<UnClosure<Oper, T, _Simd, _Null, RT>, RT> {
   using Closure = UnClosure<Oper, T, _Simd, _Null, RT>;
@@ -404,6 +490,71 @@ struct Expr<BinClosure<Oper, T, _Scalar, _Expr, _Null, Dom, RT>, RT> {
     simd<RT> tmp;
     closure.right_expr.eval(tmp);
     Oper()(dst.get_reg(), closure.left_operand, tmp.get_reg());
+  }
+};
+// transform Type
+// simd<T>& -> simd<T>&
+// scalar& -> scalar&
+// scalar -> scalar
+// Note, for: Expr<Dom, RT> -> simd<RT>
+template <class T> struct TransformType {
+  using type = T;
+};
+
+template <class Dom, typename RT> struct TransformType<Expr<Dom, RT>> {
+  using type = simd<RT>;
+};
+
+// For Tuple<Args...>
+template <typename Head, typename... Tails>
+struct TransformType<Tuple<Head, Tails...>> {
+  using TransHead = typename TransformType<Head>::type;
+  using type = PushFront<TransHead, TransformType<Tuple<Tails...>>>;
+};
+
+template <typename T> struct is_expr {
+  constexpr static bool value = false;
+};
+
+template <class Closure, typename RT> struct is_expr<Expr<Closure, RT>> {
+  constexpr static bool value = true;
+};
+
+template <typename A1, typename... Args> struct FuncArgsTuple {
+  A1 head;
+  FuncArgsTuple<Args...> tails;
+
+  // if s1 could eval(a1)
+  template <typename S1, typename... SArgs,
+            typename std::enable_if<is_expr<S1>::value>::type>
+  LIBDEVICE_ATTRIBUTE FuncArgsTuple(Tuple<S1, SArgs...> &oriFuncArgs)
+      : head(oriFuncArgs.head.eval(A1())), tails(oriFuncArgs.tails) {}
+
+  template <typename S1, typename... SArgs,
+            typename std::enable_if<!is_expr<S1>::value>::type>
+  LIBDEVICE_ATTRIBUTE FuncArgsTuple(Tuple<S1, SArgs...> &oriFuncArgs)
+      : head(), tails(oriFuncArgs.tails) {}
+};
+
+// apply function
+template <typename F, typename RT, typename Tuple, std::size_t... I>
+LIBDEVICE_ATTRIBUTE constexpr decltype(auto)
+eval_func_impl(F &&f, simd<RT> &dst, Tuple &&args, std::index_sequence<I...>) {
+  return std::forward<F>(f)(dst, get<I>(std::forward<Tuple>(args))...);
+}
+
+template <class Oper, typename RT, class... FuncArgs>
+struct Expr<FuncClosure<Oper, RT, FuncArgs...>, RT> {
+  using Closure = FuncClosure<Oper, RT, FuncArgs...>;
+  Closure closure;
+
+  LIBDEVICE_ATTRIBUTE Expr(Closure closure) : closure(closure) {}
+
+  LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) {
+    using TmpVarType = typename TransformType<Tuple<FuncArgs...>>::type;
+    TmpVarType tmpVar(closure.args);
+    eval_func_impl(Oper(), dst, tmpVar,
+                   std::make_index_sequence<TupleSizeV<TmpVarType>::value>{});
   }
 };
 
