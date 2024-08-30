@@ -1097,6 +1097,9 @@ operator!(Expr<Dom, bool> operand) {
 #define UNARY_OP(funcname, vtype)                                              \
   LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src) {                 \
     __vv_##funcname(dst, src);                                                 \
+  }                                                                            \
+  LIBDEVICE_ATTRIBUTE void operator()(vtype &dst, vtype src, vv_bool p) {      \
+    __vv_##funcname##_m(dst, src, p);                                          \
   }
 
 #define COMMUTABLE_BINARY_OP(funcname, vtype, stype)                           \
