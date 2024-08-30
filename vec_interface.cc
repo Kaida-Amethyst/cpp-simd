@@ -24,3 +24,7 @@ void __vv_load(vv_float &dst, float *src) {
 void __vv_store(float *dst, vv_float src) {
   std::cout << std::format("vec.store.f32 %{}\n", src.regNum);
 }
+
+void __vv_move(vv_float &dst, vv_float src) {
+  std::cout << std::format("vec.move.f32 %{}, %{}\n", dst.regNum, src.regNum);
+}

@@ -1,5 +1,6 @@
 #define __mlu_func__
 #include "vec_interface.h"
+#include <iostream>
 
 #define LIBDEVICE_ATTRIBUTE __mlu_func__ inline
 //-------------------------------------------
@@ -22,29 +23,11 @@ template <> struct Tuple<> {
   LIBDEVICE_ATTRIBUTE Tuple() {}
 };
 
-template <std::size_t N> struct GetTupleElement {
-  template <typename Head, typename... Tail>
-  LIBDEVICE_ATTRIBUTE static auto &get(Tuple<Head, Tail...> &t) {
-    return GetTupleElement<N - 1>::get(t.tails);
-  }
-};
-
-template <> struct GetTupleElement<0> {
-  template <typename Head, typename... Tail>
-  LIBDEVICE_ATTRIBUTE static auto &get(Tuple<Head, Tail...> &t) {
-    return t.head;
-  }
-};
-
-template <std::size_t N, typename... Args>
-LIBDEVICE_ATTRIBUTE auto &get(Tuple<Args...> &t) {
-  return GetTupleElement<N>::get(t);
-}
-
 // Tuple Size
 template <typename Tuple> struct TupleSizeV;
 
-template <typename... Args> struct TupleSizeV<Tuple<Args...>> {
+template <template <typename...> class Meta, typename... Args>
+struct TupleSizeV<Meta<Args...>> {
   static constexpr std::size_t value = sizeof...(Args);
 };
 
@@ -506,12 +489,6 @@ template <class Dom, typename RT> struct TransformType<Expr<Dom, RT>> {
 };
 
 // For Tuple<Args...>
-template <typename Head, typename... Tails>
-struct TransformType<Tuple<Head, Tails...>> {
-  using TransHead = typename TransformType<Head>::type;
-  using type = PushFront<TransHead, TransformType<Tuple<Tails...>>>;
-};
-
 template <typename T> struct is_expr {
   constexpr static bool value = false;
 };
@@ -524,23 +501,94 @@ template <typename A1, typename... Args> struct FuncArgsTuple {
   A1 head;
   FuncArgsTuple<Args...> tails;
 
-  // if s1 could eval(a1)
-  template <typename S1, typename... SArgs,
-            typename std::enable_if<is_expr<S1>::value>::type>
+  // // if s1 could eval(a1)
+  template <typename S1, typename... SArgs>
   LIBDEVICE_ATTRIBUTE FuncArgsTuple(Tuple<S1, SArgs...> &oriFuncArgs)
-      : head(oriFuncArgs.head.eval(A1())), tails(oriFuncArgs.tails) {}
-
-  template <typename S1, typename... SArgs,
-            typename std::enable_if<!is_expr<S1>::value>::type>
-  LIBDEVICE_ATTRIBUTE FuncArgsTuple(Tuple<S1, SArgs...> &oriFuncArgs)
-      : head(), tails(oriFuncArgs.tails) {}
+      : head(oriFuncArgs.head), tails(oriFuncArgs.tails) {}
 };
+
+template <typename T> struct FuncArgsTuple<T> {
+  T head;
+
+  template <typename S1>
+  LIBDEVICE_ATTRIBUTE FuncArgsTuple(Tuple<S1> &oriFuncArgs)
+      : head(oriFuncArgs.head) {}
+};
+
+template <typename NewType, typename TypeList>
+struct PushFrontFromFuncArgsTupleT;
+
+template <typename NewType, typename... Types>
+struct PushFrontFromFuncArgsTupleT<NewType, FuncArgsTuple<Types...>> {
+  using type = FuncArgsTuple<NewType, Types...>;
+};
+
+template <typename NewType>
+struct PushFrontFromFuncArgsTupleT<NewType, Tuple<>> {
+  using type = FuncArgsTuple<NewType>;
+};
+
+template <typename Head, typename... Tails>
+struct TransformType<Tuple<Head, Tails...>> {
+  using TransHead = typename TransformType<Head>::type;
+  using TransTails = typename TransformType<Tuple<Tails...>>::type;
+  using type =
+      typename PushFrontFromFuncArgsTupleT<TransHead, TransTails>::type;
+};
+
+template <std::size_t N> struct GetTupleElement {
+  template <template <typename...> class Meta, typename Head, typename... Tail>
+  LIBDEVICE_ATTRIBUTE static auto &get(Meta<Head, Tail...> &t) {
+    return GetTupleElement<N - 1>::get(t.tails);
+  }
+
+  template <typename Head, typename... Tail>
+  LIBDEVICE_ATTRIBUTE static auto &getFuncArg(FuncArgsTuple<Head, Tail...> &t) {
+    return GetTupleElement<N - 1>::getFuncArg(t.tails);
+  }
+};
+
+template <> struct GetTupleElement<0> {
+  template <template <typename...> class Meta, typename Head, typename... Tail>
+  LIBDEVICE_ATTRIBUTE static auto &get(Meta<Head, Tail...> &t) {
+    return t.head;
+  }
+
+  template <typename HeadT, typename... TailT>
+  LIBDEVICE_ATTRIBUTE static auto &
+  getFuncArg(FuncArgsTuple<HeadT, TailT...> &t) {
+    return t.head;
+  }
+
+  template <typename HeadT, typename... TailT>
+  LIBDEVICE_ATTRIBUTE static auto &
+  getFuncArg(FuncArgsTuple<simd<HeadT>, TailT...> &t) {
+    return t.head.reg;
+  }
+
+  template <typename HeadT, typename... TailT>
+  LIBDEVICE_ATTRIBUTE static auto &
+  getFuncArg(FuncArgsTuple<simd<HeadT> &, TailT...> &t) {
+    return t.head.reg;
+  }
+};
+
+template <std::size_t N, template <typename...> class Meta, typename... Args>
+LIBDEVICE_ATTRIBUTE auto &get(Meta<Args...> &t) {
+  return GetTupleElement<N>::get(t);
+}
+
+template <std::size_t N, template <typename...> class Meta, typename... Args>
+LIBDEVICE_ATTRIBUTE auto &getFuncArg(Meta<Args...> &t) {
+  return GetTupleElement<N>::getFuncArg(t);
+}
 
 // apply function
 template <typename F, typename RT, typename Tuple, std::size_t... I>
 LIBDEVICE_ATTRIBUTE constexpr decltype(auto)
 eval_func_impl(F &&f, simd<RT> &dst, Tuple &&args, std::index_sequence<I...>) {
-  return std::forward<F>(f)(dst, get<I>(std::forward<Tuple>(args))...);
+  return std::forward<F>(f)(dst.reg,
+                            getFuncArg<I>(std::forward<Tuple>(args))...);
 }
 
 template <class Oper, typename RT, class... FuncArgs>
@@ -709,6 +757,14 @@ struct __simd<T, TypeTag::Integral> : public CommonOperation<T, __simd> {
     __vv_move(reg, static_cast<T>(s));
   }
 
+  template <class Closure> LIBDEVICE_ATTRIBUTE __simd(Expr<Closure, T> &&expr) {
+    expr.eval(*this);
+  }
+
+  template <class Closure> LIBDEVICE_ATTRIBUTE __simd(Expr<Closure, T> &expr) {
+    expr.eval(*this);
+  }
+
   LIBDEVICE_ATTRIBUTE __simd(__simd<T, TypeTag::Integral> &other) {
     __vv_move(reg, other.reg);
   }
@@ -858,6 +914,10 @@ struct __simd<T, TypeTag::Floating> : public CommonOperation<T, __simd> {
   LIBDEVICE_ATTRIBUTE VRegType<T> &get_reg() { return reg; }
 
   template <class Closure> LIBDEVICE_ATTRIBUTE __simd(Expr<Closure, T> &&expr) {
+    expr.eval(*this);
+  }
+
+  template <class Closure> LIBDEVICE_ATTRIBUTE __simd(Expr<Closure, T> &expr) {
     expr.eval(*this);
   }
 
