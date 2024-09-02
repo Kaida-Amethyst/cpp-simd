@@ -300,7 +300,7 @@ struct Expr<UnClosure<Oper, T, _Simd, _Null, RT>, RT> {
   LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst) { Oper()(dst, closure.operand); }
 
   LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
-    Oper()(dst, closure.operand);
+    Oper()(dst, closure.operand, mask);
   }
 };
 
@@ -320,7 +320,7 @@ struct Expr<UnClosure<Oper, T, _Expr, Dom, RT>, RT> {
   LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
     simd<RT> tmp;
     closure.expr.eval(tmp);
-    Oper()(dst, tmp);
+    Oper()(dst, tmp, mask);
   }
 };
 
@@ -336,7 +336,7 @@ struct Expr<BinClosure<Oper, T, _Simd, _Simd, _Null, _Null, RT>, RT> {
   }
 
   LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
-    Oper()(dst, closure.left_operand, closure.right_operand);
+    Oper()(dst, closure.left_operand, closure.right_operand, mask);
   }
 };
 
@@ -356,7 +356,7 @@ struct Expr<BinClosure<Oper, T, _Expr, _Simd, Dom, _Null, RT>, RT> {
   LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
     simd<RT> tmp_left;
     closure.left_expr.eval(tmp_left);
-    Oper()(dst, tmp_left, closure.right_operand);
+    Oper()(dst, tmp_left, closure.right_operand, mask);
   }
 };
 
@@ -376,7 +376,7 @@ struct Expr<BinClosure<Oper, T, _Simd, _Expr, _Null, Dom, RT>, RT> {
   LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
     simd<RT> tmp_right;
     closure.right_expr.eval(tmp_right);
-    Oper()(dst, closure.left_operand, tmp_right);
+    Oper()(dst, closure.left_operand, tmp_right, mask);
   }
 };
 
@@ -470,7 +470,7 @@ struct Expr<BinClosure<Oper, T, _Scalar, _Expr, _Null, Dom, RT>, RT> {
   LIBDEVICE_ATTRIBUTE void eval(simd<RT> &dst, simd<bool> &mask) {
     simd<RT> tmp;
     closure.right_expr.eval(tmp);
-    Oper()(dst, closure.left_operand, tmp);
+    Oper()(dst, closure.left_operand, tmp, mask);
   }
 };
 // transform Type
@@ -579,6 +579,7 @@ struct CommonOperation {
     expr.eval(tmp);
     __vv_add(static_cast<SimdType &>(*this).reg,
              static_cast<SimdType &>(*this).reg, tmp.reg);
+    return static_cast<SimdType &>(*this);
   };
   /***********************************************************
    * operator-=
@@ -600,6 +601,7 @@ struct CommonOperation {
     expr.eval(tmp);
     __vv_sub(static_cast<SimdType &>(*this).reg,
              static_cast<SimdType &>(*this).reg, tmp.reg);
+    return static_cast<SimdType &>(*this);
   };
   /***********************************************************
    * operator*=
@@ -621,6 +623,7 @@ struct CommonOperation {
     expr.eval(tmp);
     __vv_mul(static_cast<SimdType &>(*this).reg,
              static_cast<SimdType &>(*this).reg, tmp.reg);
+    return static_cast<SimdType &>(*this);
   };
   /***********************************************************
    * operator/=
@@ -642,6 +645,7 @@ struct CommonOperation {
     expr.eval(tmp);
     __vv_div(static_cast<SimdType &>(*this).reg,
              static_cast<SimdType &>(*this).reg, tmp.reg);
+    return static_cast<SimdType &>(*this);
   };
   /***********************************************************
    * operator++
@@ -657,23 +661,21 @@ struct CommonOperation {
   /***********************************************************
    * operator--
    ***********************************************************/
-  LIBDEVICE_ATTRIBUTE SimdType &operator--() {
+  LIBDEVICE_ATTRIBUTE void operator--() {
     __vv_sub(static_cast<SimdType &>(*this).reg,
              static_cast<SimdType &>(*this).reg, (T)1);
-    return static_cast<SimdType &>(*this);
   }
-  LIBDEVICE_ATTRIBUTE SimdType &operator--(int) {
+  LIBDEVICE_ATTRIBUTE void operator--(int) {
     __vv_sub(static_cast<SimdType &>(*this).reg,
              static_cast<SimdType &>(*this).reg, (T)1);
-    return static_cast<SimdType &>(*this);
   }
 
   // load, store
-  LIBDEVICE_ATTRIBUTE void load(T *data) {
+  LIBDEVICE_ATTRIBUTE void load(void *data) {
     __vv_load(static_cast<SimdType &>(*this).reg, data);
   }
 
-  LIBDEVICE_ATTRIBUTE void store(T *data) {
+  LIBDEVICE_ATTRIBUTE void store(void *data) {
     __vv_store(data, static_cast<SimdType &>(*this).reg);
   }
 };
@@ -703,13 +705,13 @@ struct __simd<T, TypeTag::Integral> : public CommonOperation<T, __simd> {
    * operator&=
    ***********************************************************/
   LIBDEVICE_ATTRIBUTE __simd &operator&=(__simd &other) {
-    __vv_and(reg, other.reg);
+    __vv_and(reg, reg, other.reg);
     return *this;
   }
 
   template <typename Scalar>
   LIBDEVICE_ATTRIBUTE __simd &operator&=(Scalar &&s) {
-    __vv_div(reg, static_cast<T>(s));
+    __vv_and(reg, reg, static_cast<T>(s));
     return *this;
   };
 
@@ -717,19 +719,20 @@ struct __simd<T, TypeTag::Integral> : public CommonOperation<T, __simd> {
   LIBDEVICE_ATTRIBUTE __simd &operator&=(Expr<Closure, T> &&expr) {
     __simd tmp;
     expr.eval(tmp);
-    __vv_div(reg, reg, tmp.reg);
+    __vv_and(reg, reg, tmp.reg);
+    return *this;
   };
   /***********************************************************
    * operator|=
    ***********************************************************/
   LIBDEVICE_ATTRIBUTE __simd &operator|=(__simd &other) {
-    __vv_or(reg, other.reg);
+    __vv_or(reg, reg, other.reg);
     return *this;
   }
 
   template <typename Scalar>
   LIBDEVICE_ATTRIBUTE __simd &operator|=(Scalar &&s) {
-    __vv_or(reg, static_cast<T>(s));
+    __vv_or(reg, reg, static_cast<T>(s));
     return *this;
   };
 
@@ -738,6 +741,7 @@ struct __simd<T, TypeTag::Integral> : public CommonOperation<T, __simd> {
     __simd tmp;
     expr.eval(tmp);
     __vv_or(reg, reg, tmp.reg);
+    return *this;
   };
   /***********************************************************
    * operator^=
@@ -758,6 +762,7 @@ struct __simd<T, TypeTag::Integral> : public CommonOperation<T, __simd> {
     __simd tmp;
     expr.eval(tmp);
     __vv_xor(reg, reg, tmp.reg);
+    return *this;
   };
   /***********************************************************
    * operator<<=
@@ -778,11 +783,11 @@ struct __simd<T, TypeTag::Integral> : public CommonOperation<T, __simd> {
     __simd tmp;
     expr.eval(tmp);
     __vv_sll(reg, reg, tmp.reg);
+    return *this;
   };
   /***********************************************************
    * operator>>=
    ***********************************************************/
-// #pragma push_macro("LIBDEVICE_ATTRIBUTE")
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc++17-extensions"
   LIBDEVICE_ATTRIBUTE __simd &operator>>=(__simd &other) {
@@ -810,6 +815,7 @@ struct __simd<T, TypeTag::Integral> : public CommonOperation<T, __simd> {
       __vv_sra(reg, tmp.reg);
     else
       __vv_srl(reg, tmp.reg);
+    return *this;
   };
 #pragma clang diagnostic pop
   /***********************************************************
@@ -882,22 +888,484 @@ template <typename T> struct __simd<T, TypeTag::Predicate> {
   }
 };
 
-template <typename T> struct __simd_with_mask<T, TypeTag::Integral> {
+template <typename T, template <typename, TypeTag> class SimdBase>
+struct CommonOperationForMask {
+  using SimdWithMaskType = __simd_with_mask<T, TypeTraits<T>::tag>;
+  using SimdType = __simd<T, TypeTraits<T>::tag>;
+
+  LIBDEVICE_ATTRIBUTE void operator=(SimdType &other) {
+    __vv_move_m(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator=(Scalar &&s) {
+    __vv_move_m(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator=(Expr<Closure, T> &&expr) {
+    expr.eval(static_cast<SimdWithMaskType &>(*this).reg,
+              static_cast<SimdWithMaskType &>(*this).mask);
+  };
+  // +=, -=, *=, /=, lnot, neg,
+  /***********************************************************
+   * operator+=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator+=(SimdType &other) {
+    __vv_add_m(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator+=(Scalar &&s) {
+    __vv_add_m(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator+=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_add_m(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, tmp.reg,
+               static_cast<SimdWithMaskType &>(*this).mask);
+  };
+  /***********************************************************
+   * operator-=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator-=(SimdType &other) {
+    __vv_sub_m(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator-=(Scalar &&s) {
+    __vv_sub_m(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator-=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_sub_m(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator*=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator*=(SimdType &other) {
+    __vv_mul_m(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator*=(Scalar &&s) {
+    __vv_mul_m(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator*=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_mul_m(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator/=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator/=(SimdType &other) {
+    __vv_div_m(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator/=(Scalar &&s) {
+    __vv_div_m(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator/=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_div_m(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator++
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator++() {
+    __vv_add_m(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, (T)1);
+  }
+  LIBDEVICE_ATTRIBUTE void operator++(int) {
+    __vv_add_m(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, (T)1);
+  }
+  /***********************************************************
+   * operator--
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator--() {
+    __vv_sub_m(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, (T)1);
+  }
+  LIBDEVICE_ATTRIBUTE void operator--(int) {
+    __vv_sub_m(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, (T)1);
+  }
+
+  // load, store
+  LIBDEVICE_ATTRIBUTE void load(void *data) {
+    __vv_load_m(static_cast<SimdWithMaskType &>(*this).reg, data);
+  }
+
+  LIBDEVICE_ATTRIBUTE void store(void *data) {
+    __vv_store_m(data, static_cast<SimdWithMaskType &>(*this).reg);
+  }
+};
+
+template <typename T>
+struct __simd_with_mask<T, TypeTag::Integral>
+    : public CommonOperationForMask<T, __simd_with_mask> {
   VRegType<T> reg;
   vv_bool mask;
+
+  using SimdType = __simd<T, TypeTag::Integral>;
 
   LIBDEVICE_ATTRIBUTE __simd_with_mask() = delete;
 
   LIBDEVICE_ATTRIBUTE __simd_with_mask(simd<bool> &pred, simd<T> &dst)
       : reg(dst.reg), mask(pred.reg) {}
 
-  LIBDEVICE_ATTRIBUTE VRegType<bool> &get_mask() { return mask; }
+  /***********************************************************
+   * operator&=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator&=(SimdType &other) {
+    __vv_and_m(reg, reg, other.reg);
+  }
 
-  LIBDEVICE_ATTRIBUTE
-  __simd_with_mask(simd<T> &other) { __vv_move_m(reg, other.reg, mask); }
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator&=(Scalar &&s) {
+    __vv_and_m(reg, reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator&=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_and_m(reg, reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator|=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator|=(SimdType &other) {
+    __vv_or_m(reg, reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator|=(Scalar &&s) {
+    __vv_or_m(reg, reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator|=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_or_m(reg, reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator^=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator^=(SimdType &other) {
+    __vv_xor_m(reg, reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator^=(Scalar &&s) {
+    __vv_xor_m(reg, reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator^=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_xor_m(reg, reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator<<=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator<<=(SimdType &other) {
+    __vv_sll_m(reg, reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator<<=(Scalar &&s) {
+    __vv_sll_m(reg, reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator<<=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_sll_m(reg, reg, tmp.reg);
+  };
+
+  /***********************************************************
+   * operator>>=
+   ***********************************************************/
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++17-extensions"
+  LIBDEVICE_ATTRIBUTE void operator>>=(SimdType &other) {
+    if constexpr (std::is_signed<T>::value)
+      __vv_sra_m(reg, reg, other.reg);
+    else
+      __vv_srl_m(reg, reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator>>=(Scalar &&s) {
+    if constexpr (std::is_signed<T>::value)
+      __vv_sra_m(reg, reg, static_cast<T>(s));
+    else
+      __vv_srl_m(reg, reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator>>=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    if constexpr (std::is_signed<T>::value)
+      __vv_sra_m(reg, reg, tmp.reg);
+    else
+      __vv_srl_m(reg, reg, tmp.reg);
+  };
+#pragma clang diagnostic pop
 };
 
-template <typename T> struct __simd_with_zeromask<T, TypeTag::Integral> {
+template <typename T, template <typename, TypeTag> class SimdBase>
+struct CommonOperationForZeroMask {
+  using SimdWithMaskType = __simd_with_zeromask<T, TypeTraits<T>::tag>;
+  using SimdType = __simd<T, TypeTraits<T>::tag>;
+
+  LIBDEVICE_ATTRIBUTE void operator=(SimdType &other) {
+    __vv_move_z(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator=(Scalar &&s) {
+    __vv_move_z(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator=(Expr<Closure, T> &&expr) {
+    expr.eval(static_cast<SimdWithMaskType &>(*this).reg,
+              static_cast<SimdWithMaskType &>(*this).mask);
+  };
+  // +=, -=, *=, /=, lnot, neg,
+  /***********************************************************
+   * operator+=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator+=(SimdType &other) {
+    __vv_add_z(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator+=(Scalar &&s) {
+    __vv_add_z(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator+=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_add_z(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, tmp.reg,
+               static_cast<SimdWithMaskType &>(*this).mask);
+  };
+  /***********************************************************
+   * operator-=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator-=(SimdType &other) {
+    __vv_sub_z(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator-=(Scalar &&s) {
+    __vv_sub_z(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator-=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_sub_z(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator*=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator*=(SimdType &other) {
+    __vv_mul_z(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator*=(Scalar &&s) {
+    __vv_mul_z(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator*=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_mul_z(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator/=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator/=(SimdType &other) {
+    __vv_div_z(static_cast<SimdWithMaskType &>(*this).reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator/=(Scalar &&s) {
+    __vv_div_z(static_cast<SimdWithMaskType &>(*this).reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator/=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_div_z(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator++
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator++() {
+    __vv_add_z(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, (T)1);
+  }
+  LIBDEVICE_ATTRIBUTE void operator++(int) {
+    __vv_add_z(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, (T)1);
+  }
+  /***********************************************************
+   * operator--
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator--() {
+    __vv_sub_z(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, (T)1);
+  }
+  LIBDEVICE_ATTRIBUTE void operator--(int) {
+    __vv_sub_z(static_cast<SimdWithMaskType &>(*this).reg,
+               static_cast<SimdWithMaskType &>(*this).reg, (T)1);
+  }
+
+  // load, store
+  LIBDEVICE_ATTRIBUTE void load(void *data) {
+    __vv_load_z(static_cast<SimdWithMaskType &>(*this).reg, data);
+  }
+
+  LIBDEVICE_ATTRIBUTE void store(void *data) {
+    __vv_store_z(data, static_cast<SimdWithMaskType &>(*this).reg);
+  }
+};
+
+template <typename T>
+struct __simd_with_zeromask<T, TypeTag::Integral>
+    : public CommonOperationForZeroMask<T, __simd_with_zeromask> {
+  VRegType<T> &reg;
+  vv_bool &mask;
+  using SimdType = __simd<T, TypeTag::Integral>;
+
+  LIBDEVICE_ATTRIBUTE __simd_with_zeromask() = delete;
+
+  LIBDEVICE_ATTRIBUTE __simd_with_zeromask(simd<bool> &pred, simd<T> &dst)
+      : reg(dst.reg), mask(pred.reg) {}
+
+  /***********************************************************
+   * operator&=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator&=(SimdType &other) {
+    __vv_and_z(reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator&=(Scalar &&s) {
+    __vv_and_z(reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator&=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_and_z(reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator|=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator|=(SimdType &other) {
+    __vv_or_z(reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator|=(Scalar &&s) {
+    __vv_or_z(reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator|=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_or_z(reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator^=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator^=(SimdType &other) {
+    __vv_xor_z(reg, reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator^=(Scalar &&s) {
+    __vv_xor_z(reg, reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator^=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_xor_z(reg, reg, tmp.reg);
+  };
+  /***********************************************************
+   * operator<<=
+   ***********************************************************/
+  LIBDEVICE_ATTRIBUTE void operator<<=(SimdType &other) {
+    __vv_sll_z(reg, reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator<<=(Scalar &&s) {
+    __vv_sll_z(reg, reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator<<=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    __vv_sll_z(reg, reg, tmp.reg);
+  };
+
+  /***********************************************************
+   * operator>>=
+   ***********************************************************/
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++17-extensions"
+  LIBDEVICE_ATTRIBUTE void operator>>=(SimdType &other) {
+    if constexpr (std::is_signed<T>::value)
+      __vv_sra_z(reg, reg, other.reg);
+    else
+      __vv_srl_z(reg, reg, other.reg);
+  }
+
+  template <typename Scalar> LIBDEVICE_ATTRIBUTE void operator>>=(Scalar &&s) {
+    if constexpr (std::is_signed<T>::value)
+      __vv_sra_z(reg, reg, static_cast<T>(s));
+    else
+      __vv_srl_z(reg, reg, static_cast<T>(s));
+  };
+
+  template <typename Closure>
+  LIBDEVICE_ATTRIBUTE void operator>>=(Expr<Closure, T> &&expr) {
+    SimdType tmp;
+    expr.eval(tmp);
+    if constexpr (std::is_signed<T>::value)
+      __vv_sra_z(reg, reg, tmp.reg);
+    else
+      __vv_srl_z(reg, reg, tmp.reg);
+  };
+#pragma clang diagnostic pop
+};
+
+template <typename T>
+struct __simd_with_zeromask<T, TypeTag::Floating>
+    : public CommonOperationForZeroMask<T, __simd_with_zeromask> {
   VRegType<T> &reg;
   vv_bool &mask;
 
@@ -905,8 +1373,6 @@ template <typename T> struct __simd_with_zeromask<T, TypeTag::Integral> {
 
   LIBDEVICE_ATTRIBUTE __simd_with_zeromask(simd<bool> &pred, simd<T> &dst)
       : reg(dst.reg), mask(pred.reg) {}
-
-  LIBDEVICE_ATTRIBUTE VRegType<bool> &get_mask() { return mask; }
 };
 
 // ----------------------------
