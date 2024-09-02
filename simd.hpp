@@ -17,6 +17,10 @@ template <typename Head, typename... Tail> struct Tuple<Head, Tail...> {
 
   LIBDEVICE_ATTRIBUTE Tuple(Head &&h, Tail &&...t)
       : head(std::forward<Head>(h)), tails(std::forward<Tail>(t)...) {}
+
+  template <typename S1, typename... SArgs>
+  LIBDEVICE_ATTRIBUTE Tuple(Tuple<S1, SArgs...> &other)
+      : head(other.head), tails(other.tails) {}
 };
 
 template <> struct Tuple<> {
@@ -482,52 +486,11 @@ template <class Dom, typename RT> struct TransformType<Expr<Dom, RT>> {
   using type = simd<RT>;
 };
 
-// For Tuple<Args...>
-template <typename T> struct is_expr {
-  constexpr static bool value = false;
-};
-
-template <class Closure, typename RT> struct is_expr<Expr<Closure, RT>> {
-  constexpr static bool value = true;
-};
-
-template <typename A1, typename... Args> struct FuncArgsTuple {
-  A1 head;
-  FuncArgsTuple<Args...> tails;
-
-  // // if s1 could eval(a1)
-  template <typename S1, typename... SArgs>
-  LIBDEVICE_ATTRIBUTE FuncArgsTuple(Tuple<S1, SArgs...> &oriFuncArgs)
-      : head(oriFuncArgs.head), tails(oriFuncArgs.tails) {}
-};
-
-template <typename T> struct FuncArgsTuple<T> {
-  T head;
-
-  template <typename S1>
-  LIBDEVICE_ATTRIBUTE FuncArgsTuple(Tuple<S1> &oriFuncArgs)
-      : head(oriFuncArgs.head) {}
-};
-
-template <typename NewType, typename TypeList>
-struct PushFrontFromFuncArgsTupleT;
-
-template <typename NewType, typename... Types>
-struct PushFrontFromFuncArgsTupleT<NewType, FuncArgsTuple<Types...>> {
-  using type = FuncArgsTuple<NewType, Types...>;
-};
-
-template <typename NewType>
-struct PushFrontFromFuncArgsTupleT<NewType, Tuple<>> {
-  using type = FuncArgsTuple<NewType>;
-};
-
 template <typename Head, typename... Tails>
 struct TransformType<Tuple<Head, Tails...>> {
   using TransHead = typename TransformType<Head>::type;
   using TransTails = typename TransformType<Tuple<Tails...>>::type;
-  using type =
-      typename PushFrontFromFuncArgsTupleT<TransHead, TransTails>::type;
+  using type = PushFront<TransHead, TransTails>;
 };
 
 template <std::size_t N> struct GetTupleElement {
@@ -535,22 +498,11 @@ template <std::size_t N> struct GetTupleElement {
   LIBDEVICE_ATTRIBUTE static auto &get(Meta<Head, Tail...> &t) {
     return GetTupleElement<N - 1>::get(t.tails);
   }
-
-  template <typename Head, typename... Tail>
-  LIBDEVICE_ATTRIBUTE static auto &getFuncArg(FuncArgsTuple<Head, Tail...> &t) {
-    return GetTupleElement<N - 1>::getFuncArg(t.tails);
-  }
 };
 
 template <> struct GetTupleElement<0> {
   template <template <typename...> class Meta, typename Head, typename... Tail>
   LIBDEVICE_ATTRIBUTE static auto &get(Meta<Head, Tail...> &t) {
-    return t.head;
-  }
-
-  template <typename HeadT, typename... TailT>
-  LIBDEVICE_ATTRIBUTE static auto &
-  getFuncArg(FuncArgsTuple<HeadT, TailT...> &t) {
     return t.head;
   }
 };
@@ -569,7 +521,7 @@ LIBDEVICE_ATTRIBUTE auto &getFuncArg(Meta<Args...> &t) {
 template <typename F, typename RT, typename Tuple, std::size_t... I>
 LIBDEVICE_ATTRIBUTE constexpr decltype(auto)
 eval_func_impl(F &&f, simd<RT> &dst, Tuple &&args, std::index_sequence<I...>) {
-  return std::forward<F>(f)(dst, getFuncArg<I>(std::forward<Tuple>(args))...);
+  return std::forward<F>(f)(dst, get<I>(std::forward<Tuple>(args))...);
 }
 
 template <class Oper, typename RT, class... FuncArgs>
