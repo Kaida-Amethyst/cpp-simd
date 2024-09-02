@@ -21,16 +21,16 @@ template <typename T> void print() {
 }
 
 struct __fma {
-  // LIBDEVICE_ATTRIBUTE void operator()(simd<float> &dst, simd<float> &a,
-  //                                     simd<float> &b, simd<float> &c) {
-  //   std::cout << "fma " << dst.reg.regNum << " " << a.reg.regNum << " "
-  //             << b.reg.regNum << " " << c.reg.regNum << std::endl;
-  // }
-  LIBDEVICE_ATTRIBUTE void operator()(vv_float &dst, vv_float a, vv_float b,
-                                      vv_float c) {
-    std::cout << "fma " << dst.regNum << " " << a.regNum << " " << b.regNum
-              << " " << c.regNum << std::endl;
+  LIBDEVICE_ATTRIBUTE void operator()(simd<float> &dst, simd<float> &a,
+                                      simd<float> &b, simd<float> &c) {
+    std::cout << "fma " << dst.reg.regNum << " " << a.reg.regNum << " "
+              << b.reg.regNum << " " << c.reg.regNum << std::endl;
   }
+  // LIBDEVICE_ATTRIBUTE void operator()(vv_float &dst, vv_float a, vv_float b,
+  //                                     vv_float c) {
+  //   std::cout << "fma " << dst.regNum << " " << a.regNum << " " << b.regNum
+  //             << " " << c.regNum << std::endl;
+  // }
 };
 
 template <typename... Args>
